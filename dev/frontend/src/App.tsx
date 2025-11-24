@@ -9,6 +9,11 @@ import { DialogDemo } from "@/components/features/DialogDemo";
 import { AvatarDemo } from "@/components/features/AvatarDemo";
 import { SonnerDemo } from "@/components/features/SonnerDemo";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipDemo } from "@/components/demo/TooltipDemo";
+import { PopoverDemo } from "@/components/demo/PopoverDemo";
+import { DialogDemo as FloatingDialogDemo } from "@/components/demo/DialogDemo";
+import { DropdownMenuDemo } from "@/components/demo/DropdownMenuDemo";
+import { TextSelectionPopupDemo } from "@/components/demo/TextSelectionPopupDemo";
 
 function App() {
   const [currentView, setCurrentView] = useState("button");
@@ -29,6 +34,16 @@ function App() {
         return <AvatarDemo />;
       case "toast":
         return <SonnerDemo />;
+      case "tooltip":
+        return <TooltipDemo />;
+      case "popover":
+        return <PopoverDemo />;
+      case "floating-dialog":
+        return <FloatingDialogDemo />;
+      case "dropdown":
+        return <DropdownMenuDemo />;
+      case "text-selection":
+        return <TextSelectionPopupDemo />;
       default:
         return <ButtonDemo />;
     }
