@@ -1,0 +1,12 @@
+services:
+  golang-dev:
+    container_name: golang-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1323:1323"
+    volumes:
+      - ../:/workspace:cached
+    working_dir: /workspace
+    command: sleep infinity
