@@ -1,0 +1,10 @@
+version: "3"
+
+tasks:
+  init:
+    cmds:
+      - echo "拡張機能インストール開始"
+      - chmod +x .devcontainer/scripts/install_extensions.sh
+      - ./.devcontainer/scripts/install_extensions.sh
+      - echo "拡張機能インストール完了"
+    silent: true
