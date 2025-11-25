@@ -2,6 +2,7 @@
     "name": "golang-dev",
     "dockerComposeFile": "./compose.yaml",
     "service": "golang-dev",
+    "runServices": ["golang-dev", "db-chat-branch"],
     "workspaceFolder": "/workspace",
     "remoteUser": "golang",
     "customizations": {
