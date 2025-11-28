@@ -1,0 +1,17 @@
+server:
+  address: ":8080"
+
+database:
+  user: "admin"
+  password: "root"
+  host: "db-chat-branch"
+  port: "3306"
+  dbname: "chat_branch"
+
+jwt:
+  secret: "your-secret-key"
+  expiration: 24h
+
+logger:
+  level: "debug"
+  isProduction: true

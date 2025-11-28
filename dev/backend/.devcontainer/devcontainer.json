@@ -1,0 +1,24 @@
+{
+    "name": "golang-dev",
+    "dockerComposeFile": "./compose.yaml",
+    "service": "golang-dev",
+    "runServices": ["golang-dev", "db-chat-branch"],
+    "workspaceFolder": "/workspace",
+    "remoteUser": "golang",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "esbenp.prettier-vscode",
+                "oderwat.indent-rainbow",
+                "streetsidesoftware.code-spell-checker",
+                "mhutchie.git-graph",
+                "editorconfig.editorconfig",
+                "shardulm94.trailing-spaces",
+                "ms-ceintl.vscode-language-pack-ja",
+                "golang.go",
+                "windmilleng.vscode-go-autotest",
+                "romanpeshkov.go-test-outline"
+            ]
+        }
+    }
+}

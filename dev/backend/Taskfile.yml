@@ -1,0 +1,92 @@
+version: "3"
+
+vars:
+  DB_DSN: "admin:root@tcp(db-chat-branch:3306)/chat_branch?parseTime=true"
+  MIGRATION_DIR: "./db/migrations"
+
+tasks:
+  ex-init:
+    cmds:
+      - echo "拡張機能インストール開始"
+      - chmod +x .devcontainer/scripts/install_extensions.sh
+      - ./.devcontainer/scripts/install_extensions.sh
+      - echo "拡張機能インストール完了"
+    silent: true
+
+  db-init:
+    cmds:
+      - go install github.com/pressly/goose/v3/cmd/goose@latest
+    silent: true
+
+  other-init:
+    cmds:
+      - go install golang.org/x/tools/cmd/goimports@latest
+
+  # マイグレーション適用 (Up)
+  db-up:
+    cmds:
+      - goose -dir {{.MIGRATION_DIR}} mysql "{{.DB_DSN}}" up
+    silent: true
+
+  # マイグレーション戻し (Down)
+  db-down:
+    cmds:
+      - goose -dir {{.MIGRATION_DIR}} mysql "{{.DB_DSN}}" down
+    silent: true
+
+  # 状態確認
+  db-status:
+    cmds:
+      - goose -dir {{.MIGRATION_DIR}} mysql "{{.DB_DSN}}" status
+    silent: true
+
+  # 新規作成
+  # 実行方法: task create -- create_post_table
+  db-create:
+    cmds:
+      - goose -dir {{.MIGRATION_DIR}} -s create {{.CLI_ARGS}} sql
+    # 引数が空の場合のエラーハンドリング
+    preconditions:
+      - sh: '[ "{{.CLI_ARGS}}" != "" ]'
+        msg: "Migration name is required. Usage: task create -- <name>"
+    silent: true
+
+  # 全リセットして再構築
+  db-reset:
+    cmds:
+      # down-to 0 で初期状態に戻す
+      - goose -dir {{.MIGRATION_DIR}} mysql "{{.DB_DSN}}" down-to 0
+      - task: db-up
+    silent: true
+
+  build:
+    cmds:
+      - go mod tidy
+      - go build -o main ./cmd/server/main.go
+    silent: true
+
+  run:
+    cmds:
+      - ./main
+    silent: true
+
+  format:
+    cmds:
+      - goimports -w .
+    silent: true
+
+  lint:
+    cmds:
+      - golangci-lint run
+    silent: true
+
+  test:
+    cmds:
+      - go test ./... -v
+    silent: true
+
+  coverage:
+    cmds:
+      - go test ./... -coverprofile=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+    silent: true
