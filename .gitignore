@@ -3,3 +3,5 @@ coverage.out
 coverage.html
 dev/backend/main
 dev/backend/config/config.yml
+
+.pnpm-store
