@@ -1,0 +1,24 @@
+{
+    "name": "react-dev",
+    "dockerComposeFile": "./compose.yaml",
+    "service": "react-dev",
+    "workspaceFolder": "/workspace",
+    "remoteUser": "node",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "esbenp.prettier-vscode",
+                "oderwat.indent-rainbow",
+                "streetsidesoftware.code-spell-checker",
+                "mhutchie.git-graph",
+                "editorconfig.editorconfig",
+                "shardulm94.trailing-spaces",
+                "ms-ceintl.vscode-language-pack-ja",
+                "usernamehw.errorlens",
+                "dsznajder.es7-react-js-snippets",
+                "dbaeumer.vscode-eslint",
+                "yoavbls.pretty-ts-errors"
+            ]
+        }
+    }
+}
