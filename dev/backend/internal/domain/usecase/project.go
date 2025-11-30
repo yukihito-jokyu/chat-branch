@@ -8,4 +8,6 @@ import (
 type ProjectUsecase interface {
 	// プロジェクト取得処理
 	GetProjects(ctx context.Context, userUUID string) ([]*model.Project, error)
+	// プロジェクト作成処理
+	CreateProject(ctx context.Context, userUUID, initialMessage string) (*model.Project, *model.Chat, *model.Message, error)
 }

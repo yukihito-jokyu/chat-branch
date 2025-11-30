@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +30,14 @@ func (m *mockProjectUsecase) GetProjects(ctx context.Context, userUUID string) (
 	return args.Get(0).([]*model.Project), args.Error(1)
 }
 
+func (m *mockProjectUsecase) CreateProject(ctx context.Context, userUUID, initialMessage string) (*model.Project, *model.Chat, *model.Message, error) {
+	args := m.Called(ctx, userUUID, initialMessage)
+	if args.Get(0) == nil {
+		return nil, nil, nil, args.Error(3)
+	}
+	return args.Get(0).(*model.Project), args.Get(1).(*model.Chat), args.Get(2).(*model.Message), args.Error(3)
+}
+
 func TestProjectHandler_GetProjects(t *testing.T) {
 	type args struct {
 		userUUID interface{} // コンテキストにセットする値
@@ -47,7 +56,7 @@ func TestProjectHandler_GetProjects(t *testing.T) {
 			},
 			setupMock: func(m *mockProjectUsecase) {
 				projects := []*model.Project{
-					{ID: "p1", UserID: "user-1", Title: "Project 1", UpdatedAt: time.Now()},
+					{UUID: "p1", UserUUID: "user-1", Title: "Project 1", UpdatedAt: time.Now()},
 				}
 				m.On("GetProjects", mock.Anything, "user-1").Return(projects, nil)
 			},
@@ -115,6 +124,116 @@ func TestProjectHandler_GetProjects(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, res)
 			}
+
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestProjectHandler_CreateProject(t *testing.T) {
+	type args struct {
+		userUUID interface{}
+		body     string
+	}
+	tests := []struct {
+		name           string
+		args           args
+		setupMock      func(m *mockProjectUsecase)
+		wantStatus     int
+		wantBodySubstr string
+	}{
+		{
+			name: "正常系: プロジェクト作成が成功すること",
+			args: args{
+				userUUID: "user-1",
+				body:     `{"initial_message": "Hello"}`,
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				project := &model.Project{UUID: "p1", UpdatedAt: time.Now()}
+				chat := &model.Chat{UUID: "c1"}
+				message := &model.Message{UUID: "m1", Content: "Hello"}
+				m.On("CreateProject", mock.Anything, "user-1", "Hello").Return(project, chat, message, nil)
+			},
+			wantStatus:     http.StatusCreated,
+			wantBodySubstr: "p1",
+		},
+		{
+			name: "異常系: ユーザーUUIDがコンテキストにない場合401エラー",
+			args: args{
+				userUUID: nil,
+				body:     `{"initial_message": "Hello"}`,
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				// 呼び出されない
+			},
+			wantStatus:     http.StatusUnauthorized,
+			wantBodySubstr: "ユーザーUUIDの取得に失敗しました",
+		},
+		{
+			name: "異常系: リクエストボディが不正な場合400エラー",
+			args: args{
+				userUUID: "user-1",
+				body:     `invalid json`,
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				// 呼び出されない
+			},
+			wantStatus:     http.StatusBadRequest,
+			wantBodySubstr: "リクエストボディの形式が正しくありません",
+		},
+		{
+			name: "異常系: initial_messageが空の場合400エラー",
+			args: args{
+				userUUID: "user-1",
+				body:     `{"initial_message": ""}`,
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				// 呼び出されない
+			},
+			wantStatus:     http.StatusBadRequest,
+			wantBodySubstr: "initial_messageは必須です",
+		},
+		{
+			name: "異常系: Usecaseでエラーが発生した場合500エラー",
+			args: args{
+				userUUID: "user-error",
+				body:     `{"initial_message": "Hello"}`,
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				m.On("CreateProject", mock.Anything, "user-error", "Hello").Return(nil, nil, nil, errors.New("usecase error"))
+			},
+			wantStatus:     http.StatusInternalServerError,
+			wantBodySubstr: "usecase error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Echoのセットアップ
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPost, "/api/projects", strings.NewReader(tt.args.body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			// コンテキストの設定
+			if tt.args.userUUID != nil {
+				c.Set("user_uuid", tt.args.userUUID)
+			}
+
+			// モックのセットアップ
+			mockUsecase := new(mockProjectUsecase)
+			tt.setupMock(mockUsecase)
+
+			h := NewProjectHandler(mockUsecase)
+			err := h.CreateProject(c)
+
+			if err != nil {
+				// エラーハンドリング
+			}
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Contains(t, rec.Body.String(), tt.wantBodySubstr)
 
 			mockUsecase.AssertExpectations(t)
 		})

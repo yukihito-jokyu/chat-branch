@@ -54,7 +54,10 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 
 	// Project の依存関係注入
 	projectRepo := repository.NewProjectRepository(db)
-	projectUsecase := usecase.NewProjectUsecase(projectRepo)
+	chatRepo := repository.NewChatRepository(db)
+	messageRepo := repository.NewMessageRepository(db)
+	txManager := repository.NewTransactionManager(db)
+	projectUsecase := usecase.NewProjectUsecase(projectRepo, chatRepo, messageRepo, txManager)
 	projectHandler := handler.NewProjectHandler(projectUsecase)
 
 	// Middleware の初期化
@@ -74,5 +77,6 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 		project_router := e.Group("/api/projects")
 		project_router.Use(authMiddleware.Authenticate)
 		project_router.GET("", projectHandler.GetProjects)
+		project_router.POST("", projectHandler.CreateProject)
 	}
 }
