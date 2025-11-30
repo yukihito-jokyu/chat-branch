@@ -49,7 +49,7 @@ func TestUserRepository_Create(t *testing.T) {
 				t.Fatalf("failed to connect database: %v", err)
 			}
 			// マイグレーション
-			if err := db.AutoMigrate(&userDTO{}); err != nil {
+			if err := db.AutoMigrate(&userORM{}); err != nil {
 				t.Fatalf("failed to migrate database: %v", err)
 			}
 
@@ -86,7 +86,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 				id: "test-uuid",
 			},
 			setupData: func(db *gorm.DB) {
-				db.Create(&userDTO{
+				db.Create(&userORM{
 					ID:        "test-uuid",
 					Name:      "test-user",
 					CreatedID: "test-uuid",
@@ -129,7 +129,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 				t.Fatalf("failed to connect database: %v", err)
 			}
 			// マイグレーション
-			if err := db.AutoMigrate(&userDTO{}); err != nil {
+			if err := db.AutoMigrate(&userORM{}); err != nil {
 				t.Fatalf("failed to migrate database: %v", err)
 			}
 
