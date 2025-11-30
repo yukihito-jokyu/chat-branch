@@ -1,7 +1,5 @@
 name: Generate DB Documentation
 
-
-
 permissions:
   contents: read
   pages: write
@@ -53,13 +51,13 @@ jobs:
             -p password \
             -s myapp_db \
             -noimplied \
-            -vizjs \
-            -o /output
+            -vizjs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: output
+          retention-days: 3
 
       - name: Deploy to GitHub Pages
         id: deployment
@@ -69,7 +67,10 @@ on:
   push:
     branches:
       - main
-    # paths:
-    #   - 'dev/backend/db/migrations/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dev/backend/db/migrations/**'
   
   workflow_dispatch:
