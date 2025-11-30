@@ -1,0 +1,37 @@
+{
+  "guestSignup": {
+    "title": "New Users",
+    "description": "Start chatting immediately without account registration.",
+    "submitButton": "Start as Guest",
+    "submittingButton": "Processing...",
+    "successMessage": "User registration completed",
+    "errorMessage": "Signup failed. Please try again.",
+    "dialog": {
+      "title": "Registration Complete",
+      "description": "You can login with the following User ID. Please save it.",
+      "userNameLabel": "User Name",
+      "userIdLabel": "User ID",
+      "copySuccess": "User ID copied",
+      "closeButton": "Close"
+    }
+  },
+  "guestLogin": {
+    "title": "Login",
+    "description": "Enter your User ID to join the chat.",
+    "userIdLabel": "User ID",
+    "userIdPlaceholder": "Enter User ID",
+    "submitButton": "Login",
+    "submittingButton": "Logging in...",
+    "successMessage": "Logged in successfully",
+    "errorMessage": "Login failed. Please check your ID.",
+    "validation": {
+      "userIdRequired": "Please enter a User ID"
+    }
+  },
+  "guestLoginPage": {
+    "title": "Welcome to Chat App",
+    "description": "Start chatting immediately without account registration.",
+    "newUsersTitle": "New Users",
+    "existingUsersTitle": "Existing Users"
+  }
+}
