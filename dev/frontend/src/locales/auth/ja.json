@@ -1,0 +1,37 @@
+{
+  "guestSignup": {
+    "title": "初めての方はこちら",
+    "description": "アカウント登録なしで、すぐにチャットを始められます。",
+    "submitButton": "ゲストで始める",
+    "submittingButton": "処理中...",
+    "successMessage": "ユーザー登録が完了しました",
+    "errorMessage": "サインアップに失敗しました。もう一度お試しください。",
+    "dialog": {
+      "title": "ゲスト登録完了",
+      "description": "以下のユーザーIDを使ってログインできます。忘れないように保存してください。",
+      "userNameLabel": "ユーザー名",
+      "userIdLabel": "ユーザーID",
+      "copySuccess": "ユーザーIDをコピーしました",
+      "closeButton": "閉じる"
+    }
+  },
+  "guestLogin": {
+    "title": "ログイン",
+    "description": "取得したユーザーIDを入力してチャットに参加しましょう。",
+    "userIdLabel": "ユーザーID",
+    "userIdPlaceholder": "ユーザーIDを入力",
+    "submitButton": "ログイン",
+    "submittingButton": "ログイン中...",
+    "successMessage": "ログインしました",
+    "errorMessage": "ログインに失敗しました。IDを確認してください。",
+    "validation": {
+      "userIdRequired": "ユーザーIDを入力してください"
+    }
+  },
+  "guestLoginPage": {
+    "title": "チャットアプリへようこそ",
+    "description": "アカウント登録なしで、すぐに会話を始められます。",
+    "newUsersTitle": "初めての方",
+    "existingUsersTitle": "IDをお持ちの方"
+  }
+}
