@@ -3,6 +3,7 @@ package router
 import (
 	"backend/config"
 	"backend/internal/handler"
+	internalMiddleware "backend/internal/middleware"
 	"backend/internal/repository"
 	"backend/internal/usecase"
 
@@ -51,6 +52,14 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 	authUsecase := usecase.NewAuthUsecase(userRepo, cfg)
 	authHandler := handler.NewAuthHandler(authUsecase, cfg)
 
+	// Project の依存関係注入
+	projectRepo := repository.NewProjectRepository(db)
+	projectUsecase := usecase.NewProjectUsecase(projectRepo)
+	projectHandler := handler.NewProjectHandler(projectUsecase)
+
+	// Middleware の初期化
+	authMiddleware := internalMiddleware.NewAuthMiddleware(cfg)
+
 	e.GET("/health", h.HealthCheck)
 
 	// auth関連
@@ -58,5 +67,12 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 		auth_router := e.Group("/api/auth")
 		auth_router.POST("/signup", authHandler.Signup)
 		auth_router.POST("/login", authHandler.Login)
+	}
+
+	// project関連
+	{
+		project_router := e.Group("/api/projects")
+		project_router.Use(authMiddleware.Authenticate)
+		project_router.GET("", projectHandler.GetProjects)
 	}
 }
