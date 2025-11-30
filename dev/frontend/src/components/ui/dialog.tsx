@@ -4,14 +4,57 @@ import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Dialogコンポーネント
+ *
+ * モーダルダイアログを表示するためのルートコンポーネントです。
+ * 状態管理（開閉状態）を行い、コンテキストを子コンポーネントに提供します。
+ *
+ * @example
+ * <Dialog>
+ *   <DialogTrigger>Open</DialogTrigger>
+ *   <DialogContent>
+ *     <DialogHeader>
+ *       <DialogTitle>Title</DialogTitle>
+ *       <DialogDescription>Description</DialogDescription>
+ *     </DialogHeader>
+ *     Content goes here
+ *   </DialogContent>
+ * </Dialog>
+ */
 const Dialog = DialogPrimitive.Root;
 
+/**
+ * DialogTriggerコンポーネント
+ *
+ * ダイアログを開くためのトリガーとなる要素です。
+ * デフォルトではボタンとしてレンダリングされますが、asChildプロパティを使用することで
+ * 子要素をトリガーとして機能させることができます。
+ */
 const DialogTrigger = DialogPrimitive.Trigger;
 
+/**
+ * DialogPortalコンポーネント
+ *
+ * ダイアログのコンテンツをDOMの別の場所（通常はbody直下）にレンダリングするために使用されます。
+ * これにより、親要素のスタイル（overflow: hiddenなど）の影響を受けずに表示できます。
+ */
 const DialogPortal = DialogPrimitive.Portal;
 
+/**
+ * DialogCloseコンポーネント
+ *
+ * ダイアログを閉じるためのボタンとして機能するコンポーネントです。
+ * このコンポーネントでラップされた要素をクリックするとダイアログが閉じます。
+ */
 const DialogClose = DialogPrimitive.Close;
 
+/**
+ * DialogOverlayコンポーネント
+ *
+ * ダイアログが開いているときに背景を覆うオーバーレイ（バックドロップ）です。
+ * 背景をクリックするとダイアログが閉じる動作を提供します。
+ */
 const DialogOverlay = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -27,6 +70,13 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+/**
+ * DialogContentコンポーネント
+ *
+ * ダイアログのメインコンテンツを表示するコンテナです。
+ * 画面中央に配置され、アニメーション効果を持ちます。
+ * 右上に閉じるボタン（Xアイコン）が自動的に配置されます。
+ */
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -51,6 +101,12 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * DialogHeaderコンポーネント
+ *
+ * ダイアログのヘッダーセクションです。
+ * タイトルや説明文を適切なレイアウトで配置するために使用します。
+ */
 const DialogHeader = ({
   className,
   ...props
@@ -65,6 +121,12 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = "DialogHeader";
 
+/**
+ * DialogFooterコンポーネント
+ *
+ * ダイアログのフッターセクションです。
+ * アクションボタン（保存、キャンセルなど）を右寄せなどで配置するために使用します。
+ */
 const DialogFooter = ({
   className,
   ...props
@@ -79,6 +141,12 @@ const DialogFooter = ({
 );
 DialogFooter.displayName = "DialogFooter";
 
+/**
+ * DialogTitleコンポーネント
+ *
+ * ダイアログのタイトルを表示します。
+ * アクセシビリティのために重要な要素であり、スクリーンリーダーによって読み上げられます。
+ */
 const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -94,6 +162,12 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
+/**
+ * DialogDescriptionコンポーネント
+ *
+ * ダイアログの説明文を表示します。
+ * タイトルの下に配置し、ダイアログの目的や詳細をユーザーに伝えます。
+ */
 const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
