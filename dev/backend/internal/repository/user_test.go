@@ -137,7 +137,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 			tt.setupData(db)
 
 			r := NewUserRepository(db)
-			got, err := r.FindByID(context.Background(), tt.args.id)
+			got, err := r.FindByUUID(context.Background(), tt.args.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("userRepository.FindByID() error = %v, wantErr %v", err, tt.wantErr)
 				return

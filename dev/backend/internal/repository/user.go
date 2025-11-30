@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// userのORMモデル
 type userORM struct {
 	ID        string `gorm:"primaryKey;column:uuid;size:36"`
 	Name      string `gorm:"size:255"`
@@ -22,7 +23,7 @@ func (userORM) TableName() string {
 	return "users"
 }
 
-// DTOをドメインモデルに変換する処理
+// userORMをドメインモデルに変換する処理
 func (orm *userORM) toDomain() *model.User {
 	return &model.User{
 		ID:   orm.ID,
@@ -30,7 +31,7 @@ func (orm *userORM) toDomain() *model.User {
 	}
 }
 
-// ドメインモデルをDTOに変換する処理
+// ドメインモデルをuserORMに変換する処理
 func fromDomain(u *model.User) *userORM {
 	return &userORM{
 		ID:        u.ID,
@@ -59,11 +60,11 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-// 指定されたIDのユーザーを検索する処理
-func (r *userRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
-	slog.DebugContext(ctx, "ユーザー検索処理を開始", "user_id", id)
+// 指定されたUUIDのユーザーを検索する処理
+func (r *userRepository) FindByUUID(ctx context.Context, uuid string) (*model.User, error) {
+	slog.DebugContext(ctx, "ユーザー検索処理を開始", "user_uuid", uuid)
 	var orm userORM
-	err := r.db.WithContext(ctx).First(&orm, "uuid = ?", id).Error
+	err := r.db.WithContext(ctx).First(&orm, "uuid = ?", uuid).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, gorm.ErrRecordNotFound

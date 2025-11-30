@@ -46,14 +46,14 @@ func (u *authUsecase) GuestSignup(ctx context.Context) (*model.User, string, err
 		return nil, "", fmt.Errorf("トークン生成に失敗: %w", err)
 	}
 
-	slog.InfoContext(ctx, "ゲストユーザーを作成しました", "user_id", user.ID)
+	slog.InfoContext(ctx, "ゲストユーザーを作成しました", "user_uuid", user.ID)
 	return user, token, nil
 }
 
 // ゲストユーザーのログイン処理
-func (u *authUsecase) GuestLogin(ctx context.Context, userID string) (string, error) {
-	slog.InfoContext(ctx, "ゲストログイン処理を開始", "user_id", userID)
-	user, err := u.userRepo.FindByID(ctx, userID)
+func (u *authUsecase) GuestLogin(ctx context.Context, userUUID string) (string, error) {
+	slog.InfoContext(ctx, "ゲストログイン処理を開始", "user_uuid", userUUID)
+	user, err := u.userRepo.FindByUUID(ctx, userUUID)
 	if err != nil {
 		return "", fmt.Errorf("ユーザー検索に失敗: %w", err)
 	}
@@ -66,11 +66,11 @@ func (u *authUsecase) GuestLogin(ctx context.Context, userID string) (string, er
 	return token, nil
 }
 
-// 指定されたユーザーIDのJWTトークンを生成する処理
-func (u *authUsecase) generateToken(userID string) (string, error) {
+// 指定されたユーザーUUIDのJWTトークンを生成する処理
+func (u *authUsecase) generateToken(userUUID string) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(u.cfg.JWT.Expiration).Unix(),
+		"user_uuid": userUUID,
+		"exp":       time.Now().Add(u.cfg.JWT.Expiration).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

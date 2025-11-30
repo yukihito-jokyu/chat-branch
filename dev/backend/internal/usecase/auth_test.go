@@ -22,8 +22,8 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 	return args.Error(0)
 }
 
-func (m *mockUserRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
-	args := m.Called(ctx, id)
+func (m *mockUserRepository) FindByUUID(ctx context.Context, uuid string) (*model.User, error) {
+	args := m.Called(ctx, uuid)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -111,7 +111,7 @@ func TestAuthUsecase_GuestLogin(t *testing.T) {
 			name:   "正常系: 存在するユーザーでログインできること",
 			userID: "test-user-id",
 			setupMock: func(m *mockUserRepository) {
-				m.On("FindByID", mock.Anything, "test-user-id").Return(&model.User{
+				m.On("FindByUUID", mock.Anything, "test-user-id").Return(&model.User{
 					ID:   "test-user-id",
 					Name: "Test User",
 				}, nil)
@@ -123,7 +123,7 @@ func TestAuthUsecase_GuestLogin(t *testing.T) {
 			name:   "異常系: 存在しないユーザーの場合エラーになること",
 			userID: "non-existent-id",
 			setupMock: func(m *mockUserRepository) {
-				m.On("FindByID", mock.Anything, "non-existent-id").Return(nil, errors.New("user not found"))
+				m.On("FindByUUID", mock.Anything, "non-existent-id").Return(nil, errors.New("user not found"))
 			},
 			wantToken: false,
 			wantErr:   true,
