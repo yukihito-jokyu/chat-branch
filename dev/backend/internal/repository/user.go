@@ -8,6 +8,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ func (userORM) TableName() string {
 // userORMをドメインモデルに変換する処理
 func (orm *userORM) toDomain() *model.User {
 	return &model.User{
-		ID:   orm.ID,
+		UUID: orm.ID,
 		Name: orm.Name,
 	}
 }
@@ -34,9 +35,9 @@ func (orm *userORM) toDomain() *model.User {
 // ドメインモデルをuserORMに変換する処理
 func fromDomain(u *model.User) *userORM {
 	return &userORM{
-		ID:        u.ID,
+		ID:        u.UUID,
 		Name:      u.Name,
-		CreatedID: u.ID,
+		CreatedID: uuid.NewString(),
 	}
 }
 
@@ -51,7 +52,7 @@ func NewUserRepository(db *gorm.DB) repository.UserRepository {
 
 // 新しいユーザーをデータベースに作成する処理
 func (r *userRepository) Create(ctx context.Context, user *model.User) error {
-	slog.DebugContext(ctx, "ユーザー作成処理を開始", "user_id", user.ID)
+	slog.DebugContext(ctx, "ユーザー作成処理を開始", "user_uuid", user.UUID)
 	orm := fromDomain(user)
 	err := r.db.WithContext(ctx).Create(orm).Error
 	if err != nil {

@@ -35,14 +35,14 @@ func (h *AuthHandler) Signup(c echo.Context) error {
 		})
 	}
 
-	slog.InfoContext(ctx, "ゲストサインアップに成功", "user_id", user.ID)
+	slog.InfoContext(ctx, "ゲストサインアップに成功", "user_uuid", user.UUID)
 	return c.JSON(http.StatusOK, model.SignupResponse{
 		Token: token,
 		User: struct {
-			ID   string `json:"id"`
+			UUID string `json:"uuid"`
 			Name string `json:"name"`
 		}{
-			ID:   user.ID,
+			UUID: user.UUID,
 			Name: user.Name,
 		},
 	})
@@ -59,16 +59,16 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		})
 	}
 
-	if req.UserID == "" {
+	if req.UserUUID == "" {
 		slog.WarnContext(c.Request().Context(), "ユーザーIDが指定されていません")
 		return c.JSON(http.StatusBadRequest, model.Response{
 			Status:  "error",
-			Message: "user_id is required",
+			Message: "user_uuid is required",
 		})
 	}
 
 	ctx := c.Request().Context()
-	token, err := h.authUsecase.GuestLogin(ctx, req.UserID)
+	token, err := h.authUsecase.GuestLogin(ctx, req.UserUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "ゲストログインに失敗", "error", err)
 		return c.JSON(http.StatusInternalServerError, model.Response{
@@ -77,7 +77,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		})
 	}
 
-	slog.InfoContext(ctx, "ゲストログインに成功", "user_id", req.UserID)
+	slog.InfoContext(ctx, "ゲストログインに成功", "user_uuid", req.UserUUID)
 	return c.JSON(http.StatusOK, model.LoginResponse{
 		Token: token,
 	})

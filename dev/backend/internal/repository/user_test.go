@@ -23,7 +23,7 @@ func TestUserRepository_Create(t *testing.T) {
 			name: "正常系: ユーザーが作成できること",
 			args: args{
 				user: &model.User{
-					ID:   "test-uuid",
+					UUID: "test-uuid",
 					Name: "test-user",
 				},
 			},
@@ -33,7 +33,7 @@ func TestUserRepository_Create(t *testing.T) {
 			name: "異常系: IDが重複している場合エラーになること",
 			args: args{
 				user: &model.User{
-					ID:   "duplicate-uuid",
+					UUID: "duplicate-uuid",
 					Name: "duplicate-user",
 				},
 			},
@@ -93,7 +93,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 				})
 			},
 			want: &model.User{
-				ID:   "test-uuid",
+				UUID: "test-uuid",
 				Name: "test-user",
 			},
 			wantErr: false,

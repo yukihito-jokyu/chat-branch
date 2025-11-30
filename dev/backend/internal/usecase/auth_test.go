@@ -50,7 +50,7 @@ func TestAuthUsecase_GuestSignup(t *testing.T) {
 			name: "正常系: ゲストユーザー作成とトークン生成が成功すること",
 			setupMock: func(m *mockUserRepository) {
 				m.On("Create", mock.Anything, mock.MatchedBy(func(u *model.User) bool {
-					return u.ID != "" && u.Name != "" // IDと名前が生成されていること
+					return u.UUID != "" && u.Name != "" // IDと名前が生成されていること
 				})).Return(nil)
 			},
 			wantUser:  true,
@@ -82,7 +82,7 @@ func TestAuthUsecase_GuestSignup(t *testing.T) {
 			}
 			if tt.wantUser {
 				assert.NotNil(t, user)
-				assert.NotEmpty(t, user.ID)
+				assert.NotEmpty(t, user.UUID)
 			}
 			if tt.wantToken {
 				assert.NotEmpty(t, token)
@@ -102,17 +102,17 @@ func TestAuthUsecase_GuestLogin(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		userID    string
+		userUUID  string
 		setupMock func(m *mockUserRepository)
 		wantToken bool
 		wantErr   bool
 	}{
 		{
-			name:   "正常系: 存在するユーザーでログインできること",
-			userID: "test-user-id",
+			name:     "正常系: 存在するユーザーでログインできること",
+			userUUID: "test-user-id",
 			setupMock: func(m *mockUserRepository) {
 				m.On("FindByUUID", mock.Anything, "test-user-id").Return(&model.User{
-					ID:   "test-user-id",
+					UUID: "test-user-id",
 					Name: "Test User",
 				}, nil)
 			},
@@ -120,8 +120,8 @@ func TestAuthUsecase_GuestLogin(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:   "異常系: 存在しないユーザーの場合エラーになること",
-			userID: "non-existent-id",
+			name:     "異常系: 存在しないユーザーの場合エラーになること",
+			userUUID: "non-existent-id",
 			setupMock: func(m *mockUserRepository) {
 				m.On("FindByUUID", mock.Anything, "non-existent-id").Return(nil, errors.New("user not found"))
 			},
@@ -136,7 +136,7 @@ func TestAuthUsecase_GuestLogin(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			u := NewAuthUsecase(mockRepo, cfg)
-			token, err := u.GuestLogin(context.Background(), tt.userID)
+			token, err := u.GuestLogin(context.Background(), tt.userUUID)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("authUsecase.GuestLogin() error = %v, wantErr %v", err, tt.wantErr)

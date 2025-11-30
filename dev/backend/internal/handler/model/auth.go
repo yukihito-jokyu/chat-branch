@@ -3,13 +3,13 @@ package model
 type SignupResponse struct {
 	Token string `json:"token"`
 	User  struct {
-		ID   string `json:"id"`
+		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"user"`
 }
 
 type LoginRequest struct {
-	UserID string `json:"user_id"`
+	UserUUID string `json:"user_uuid"`
 }
 
 type LoginResponse struct {

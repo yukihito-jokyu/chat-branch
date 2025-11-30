@@ -29,8 +29,8 @@ func (m *mockAuthUsecase) GuestSignup(ctx context.Context) (*model.User, string,
 	return args.Get(0).(*model.User), args.String(1), args.Error(2)
 }
 
-func (m *mockAuthUsecase) GuestLogin(ctx context.Context, userID string) (string, error) {
-	args := m.Called(ctx, userID)
+func (m *mockAuthUsecase) GuestLogin(ctx context.Context, userUUID string) (string, error) {
+	args := m.Called(ctx, userUUID)
 	return args.String(0), args.Error(1)
 }
 
@@ -47,7 +47,7 @@ func TestAuthHandler_Signup(t *testing.T) {
 			name: "正常系: サインアップが成功すること",
 			setupMock: func(m *mockAuthUsecase) {
 				m.On("GuestSignup", mock.Anything).Return(&model.User{
-					ID:   "test-uuid",
+					UUID: "test-uuid",
 					Name: "Guest-test",
 				}, "test-token", nil)
 			},
@@ -98,7 +98,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	}{
 		{
 			name:    "正常系: ログインが成功すること",
-			reqBody: `{"user_id": "test-uuid"}`,
+			reqBody: `{"user_uuid": "test-uuid"}`,
 			setupMock: func(m *mockAuthUsecase) {
 				m.On("GuestLogin", mock.Anything, "test-uuid").Return("test-token", nil)
 			},
@@ -113,15 +113,15 @@ func TestAuthHandler_Login(t *testing.T) {
 			wantBody:   `"status":"error"`,
 		},
 		{
-			name:       "異常系: user_idが空の場合400になること",
-			reqBody:    `{"user_id": ""}`,
+			name:       "異常系: user_uuidが空の場合400になること",
+			reqBody:    `{"user_uuid": ""}`,
 			setupMock:  func(m *mockAuthUsecase) {},
 			wantStatus: http.StatusBadRequest,
-			wantBody:   `"message":"user_id is required"`,
+			wantBody:   `"message":"user_uuid is required"`,
 		},
 		{
 			name:    "異常系: Usecaseでエラーが発生した場合500になること",
-			reqBody: `{"user_id": "test-uuid"}`,
+			reqBody: `{"user_uuid": "test-uuid"}`,
 			setupMock: func(m *mockAuthUsecase) {
 				m.On("GuestLogin", mock.Anything, "test-uuid").Return("", errors.New("internal error"))
 			},
