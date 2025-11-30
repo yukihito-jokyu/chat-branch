@@ -1,0 +1,75 @@
+name: Generate DB Documentation
+
+
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: myapp_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25.4'
+
+      - name: Install Goose and Migrate
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          cd dev/backend/db/migrations 
+          goose mysql "root:password@tcp(127.0.0.1:3306)/myapp_db" up
+
+      - name: Run SchemaSpy
+        run: |
+          mkdir output
+          chmod 777 output
+          docker run --network host --rm -v $(pwd)/output:/output schemaspy/schemaspy:latest \
+            -t mysql \
+            -host 127.0.0.1 \
+            -port 3306 \
+            -db myapp_db \
+            -u root \
+            -p password \
+            -s myapp_db \
+            -noimplied \
+            -vizjs \
+            -o /output
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dev/backend/db/migrations/**'
+  
+  workflow_dispatch:
