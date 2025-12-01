@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"backend/internal/handler/model"
 	"backend/internal/usecase"
 	"encoding/json"
 	"fmt"
@@ -11,7 +12,10 @@ import (
 )
 
 type ChatHandler interface {
+	// チャットの最初のメッセージを元に、GenAI にストリームを送信する
 	FirstStreamChat(c echo.Context) error
+	// チャットを取得する
+	GetChat(c echo.Context) error
 }
 
 type chatHandler struct {
@@ -91,4 +95,31 @@ func (h *chatHandler) FirstStreamChat(c echo.Context) error {
 			return nil
 		}
 	}
+}
+
+// チャットを取得する
+func (h *chatHandler) GetChat(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	chat, err := h.chatUsecase.GetChat(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "GetChat エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := model.GetChatResponse{
+		UUID:           chat.UUID,
+		ProjectUUID:    chat.ProjectUUID,
+		ParentUUID:     chat.ParentUUID,
+		Title:          chat.Title,
+		Status:         chat.Status,
+		ContextSummary: chat.ContextSummary,
+	}
+
+	slog.InfoContext(ctx, "チャットの取得に成功", "chat_uuid", chat.UUID)
+	return c.JSON(http.StatusOK, res)
 }

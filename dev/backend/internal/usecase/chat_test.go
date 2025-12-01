@@ -211,3 +211,67 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 		})
 	}
 }
+
+func TestChatUsecase_GetChat(t *testing.T) {
+	type mocks struct {
+		chatRepo    *MockChatRepository
+		messageRepo *MockMessageRepository
+		genaiClient *MockGenAIClient
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      *model.Chat
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットが取得できること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{
+					UUID: "chat-uuid",
+				}, nil)
+			},
+			want: &model.Chat{
+				UUID: "chat-uuid",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: Repositoryがエラーを返した場合",
+			args: args{
+				chatUUID: "error-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "error-uuid").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:    &MockChatRepository{},
+				messageRepo: &MockMessageRepository{},
+				genaiClient: &MockGenAIClient{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient)
+
+			got, err := u.GetChat(context.Background(), tt.args.chatUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.GetChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -15,6 +15,8 @@ import (
 type ChatUsecase interface {
 	// チャットの最初のメッセージを元に、GenAI にストリームを送信する
 	FirstStreamChat(ctx context.Context, chatUUID string, outputChan chan<- string) error
+	// チャットを取得する
+	GetChat(ctx context.Context, chatUUID string) (*model.Chat, error)
 }
 
 // GenAIClient は GenAI クライアントのインターフェース
@@ -119,4 +121,15 @@ func (u *chatUsecase) FirstStreamChat(ctx context.Context, chatUUID string, outp
 
 	slog.InfoContext(ctx, "チャットストリーム処理完了", "chat_uuid", chatUUID)
 	return nil
+}
+
+// チャットを取得する
+func (u *chatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.Chat, error) {
+	slog.InfoContext(ctx, "チャット取得処理開始", "chat_uuid", chatUUID)
+	chat, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャット取得失敗", "chat_uuid", chatUUID, "error", err)
+		return nil, err
+	}
+	return chat, nil
 }
