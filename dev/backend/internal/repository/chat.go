@@ -50,15 +50,17 @@ func (r *chatRepository) Create(ctx context.Context, chat *model.Chat) error {
 	}
 
 	orm := chatORM{
-		UUID:           chat.UUID,
-		ProjectUUID:    chat.ProjectUUID,
-		ParentChatUUID: chat.ParentUUID,
-		Title:          chat.Title,
-		Status:         chat.Status,
-		ContextSummary: contextSummary,
-		CreatedID:      uuid.New().String(), // TODO: ユーザーIDを引数で受け取るか、Contextから取得する必要があるが、現状はランダムUUID
-		CreatedAt:      chat.CreatedAt,
-		UpdatedAt:      chat.UpdatedAt,
+		UUID:                 chat.UUID,
+		ProjectUUID:          chat.ProjectUUID,
+		ParentChatUUID:       chat.ParentUUID,
+		SourceMessageUUID:    chat.SourceMessageUUID,
+		MessageSelectionUUID: chat.MessageSelectionUUID,
+		Title:                chat.Title,
+		Status:               chat.Status,
+		ContextSummary:       contextSummary,
+		CreatedID:            uuid.New().String(),
+		CreatedAt:            chat.CreatedAt,
+		UpdatedAt:            chat.UpdatedAt,
 	}
 	db := getDB(ctx, r.db)
 	return db.WithContext(ctx).Create(&orm).Error
@@ -79,13 +81,15 @@ func (r *chatRepository) FindByID(ctx context.Context, uuid string) (*model.Chat
 	}
 
 	return &model.Chat{
-		UUID:           orm.UUID,
-		ProjectUUID:    orm.ProjectUUID,
-		ParentUUID:     orm.ParentChatUUID,
-		Title:          orm.Title,
-		Status:         orm.Status,
-		ContextSummary: contextSummary,
-		CreatedAt:      orm.CreatedAt,
-		UpdatedAt:      orm.UpdatedAt,
+		UUID:                 orm.UUID,
+		ProjectUUID:          orm.ProjectUUID,
+		ParentUUID:           orm.ParentChatUUID,
+		SourceMessageUUID:    orm.SourceMessageUUID,
+		MessageSelectionUUID: orm.MessageSelectionUUID,
+		Title:                orm.Title,
+		Status:               orm.Status,
+		ContextSummary:       contextSummary,
+		CreatedAt:            orm.CreatedAt,
+		UpdatedAt:            orm.UpdatedAt,
 	}, nil
 }

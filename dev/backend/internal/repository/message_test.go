@@ -10,18 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type messageSelectionORM struct {
-	UUID         string `gorm:"primaryKey;column:uuid;size:255"`
-	SelectedText string `gorm:"column:selected_text;type:text"`
-	RangeStart   int    `gorm:"column:range_start"`
-	RangeEnd     int    `gorm:"column:range_end"`
-	CreatedID    string `gorm:"column:created_id;size:255"`
-}
-
-func (messageSelectionORM) TableName() string {
-	return "message_selections"
-}
-
 func strPtr(s string) *string {
 	return &s
 }

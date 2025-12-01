@@ -20,6 +20,8 @@ type ChatUsecase interface {
 	StreamMessage(ctx context.Context, chatUUID string, outputChan chan<- string) error
 	// フォークプレビューを生成する
 	GenerateForkPreview(ctx context.Context, chatUUID string, req model.ForkPreviewRequest) (*model.ForkPreviewResponse, error)
+	// チャットをフォークする
+	ForkChat(ctx context.Context, params model.ForkChatParams) (string, error)
 }
 
 // GenAIClient は GenAI クライアントのインターフェース

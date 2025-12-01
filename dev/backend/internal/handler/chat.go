@@ -4,6 +4,7 @@ import (
 	domainModel "backend/internal/domain/model"
 	"backend/internal/domain/usecase"
 	"backend/internal/handler/model"
+	handlerModel "backend/internal/handler/model"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -291,6 +292,51 @@ func (h *chatHandler) GenerateForkPreview(c echo.Context) error {
 			Status:  "error",
 			Message: err.Error(),
 		})
+	}
+
+	return c.JSON(http.StatusOK, res)
+}
+
+// フォークチャットを生成する
+func (h *chatHandler) ForkChat(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	var req handlerModel.ForkChatRequest
+	if err := c.Bind(&req); err != nil {
+		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
+		return c.JSON(http.StatusBadRequest, model.Response{Status: "error", Message: err.Error()})
+	}
+
+	// パスパラメータとリクエストボディの整合性チェック
+	if req.ParentChatUUID != "" && req.ParentChatUUID != chatUUID {
+		slog.WarnContext(ctx, "パスパラメータのチャットIDとリクエストボディの親チャットIDが一致しない", "path", chatUUID, "body", req.ParentChatUUID)
+		return c.JSON(http.StatusBadRequest, model.Response{Status: "error", Message: "親チャットIDと一致しない"})
+	}
+	// リクエストボディに親チャットIDがない場合はパスパラメータを使用
+	if req.ParentChatUUID == "" {
+		req.ParentChatUUID = chatUUID
+	}
+
+	params := domainModel.ForkChatParams{
+		TargetMessageUUID: req.TargetMessageUUID,
+		ParentChatUUID:    req.ParentChatUUID,
+		SelectedText:      req.SelectedText,
+		RangeStart:        req.RangeStart,
+		RangeEnd:          req.RangeEnd,
+		Title:             req.Title,
+		ContextSummary:    req.ContextSummary,
+	}
+
+	newChatID, err := h.chatUsecase.ForkChat(ctx, params)
+	if err != nil {
+		slog.ErrorContext(ctx, "フォークチャットの生成に失敗", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{Status: "error", Message: err.Error()})
+	}
+
+	res := handlerModel.ForkChatResponse{
+		NewChatID: newChatID,
+		Message:   "子チャットを作成しました",
 	}
 
 	return c.JSON(http.StatusOK, res)

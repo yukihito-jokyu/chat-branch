@@ -35,18 +35,29 @@ func (w *GenAIClientWrapper) GenerateContent(ctx context.Context, model string, 
 }
 
 type chatUsecase struct {
-	chatRepo    repository.ChatRepository
-	messageRepo repository.MessageRepository
-	genaiClient domainUsecase.GenAIClient
-	publisher   message.Publisher
+	chatRepo             repository.ChatRepository
+	messageRepo          repository.MessageRepository
+	messageSelectionRepo repository.MessageSelectionRepository
+	transactionManager   repository.TransactionManager
+	genaiClient          domainUsecase.GenAIClient
+	publisher            message.Publisher
 }
 
-func NewChatUsecase(chatRepo repository.ChatRepository, messageRepo repository.MessageRepository, genaiClient domainUsecase.GenAIClient, publisher message.Publisher) domainUsecase.ChatUsecase {
+func NewChatUsecase(
+	chatRepo repository.ChatRepository,
+	messageRepo repository.MessageRepository,
+	messageSelectionRepo repository.MessageSelectionRepository,
+	transactionManager repository.TransactionManager,
+	genaiClient domainUsecase.GenAIClient,
+	publisher message.Publisher,
+) domainUsecase.ChatUsecase {
 	return &chatUsecase{
-		chatRepo:    chatRepo,
-		messageRepo: messageRepo,
-		genaiClient: genaiClient,
-		publisher:   publisher,
+		chatRepo:             chatRepo,
+		messageRepo:          messageRepo,
+		messageSelectionRepo: messageSelectionRepo,
+		transactionManager:   transactionManager,
+		genaiClient:          genaiClient,
+		publisher:            publisher,
 	}
 }
 
@@ -447,4 +458,77 @@ JSON形式:
 	}
 
 	return &result, nil
+}
+
+// チャットをフォークする
+func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams) (string, error) {
+	slog.InfoContext(ctx, "チャットフォーク処理開始", "parent_chat_uuid", params.ParentChatUUID, "target_message_uuid", params.TargetMessageUUID)
+
+	// 1. 親チャットの存在確認
+	parentChat, err := u.chatRepo.FindByID(ctx, params.ParentChatUUID)
+	if err != nil {
+		return "", fmt.Errorf("親チャットの存在確認に失敗: %w", err)
+	}
+
+	// 2. トランザクション処理
+	// MessageSelection作成 -> Chat作成 -> Message作成
+	newChatUUID := uuid.New().String()
+	selectionUUID := uuid.New().String()
+	messageUUID := uuid.New().String()
+
+	err = u.transactionManager.Do(ctx, func(ctx context.Context) error {
+		// 2-1. MessageSelection作成
+		selection := &model.MessageSelection{
+			UUID:         selectionUUID,
+			SelectedText: params.SelectedText,
+			RangeStart:   params.RangeStart,
+			RangeEnd:     params.RangeEnd,
+			CreatedAt:    time.Now(),
+		}
+		if err := u.messageSelectionRepo.Create(ctx, selection); err != nil {
+			return fmt.Errorf("メッセージ選択の作成に失敗: %w", err)
+		}
+
+		// 2-2. Chat作成
+		newChat := &model.Chat{
+			UUID:                 newChatUUID,
+			ProjectUUID:          parentChat.ProjectUUID, // 親チャットと同じプロジェクト
+			ParentUUID:           &params.ParentChatUUID,
+			SourceMessageUUID:    &params.TargetMessageUUID,
+			MessageSelectionUUID: &selectionUUID,
+			Title:                params.Title,
+			Status:               "open",
+			ContextSummary:       params.ContextSummary,
+			CreatedAt:            time.Now(),
+			UpdatedAt:            time.Now(),
+		}
+		if err := u.chatRepo.Create(ctx, newChat); err != nil {
+			return fmt.Errorf("新しいチャットの作成に失敗: %w", err)
+		}
+
+		// 2-3. Message作成 (最初のメッセージ)
+		// タイトルとコンテキストサマリを結合した文章をユーザーメッセージとして保存
+		initialContent := fmt.Sprintf("%s\n\n%s", params.Title, params.ContextSummary)
+		message := &model.Message{
+			UUID:      messageUUID,
+			ChatUUID:  newChatUUID,
+			Role:      "assistant",
+			Content:   initialContent,
+			CreatedAt: time.Now(),
+		}
+		if err := u.messageRepo.Create(ctx, message); err != nil {
+			return fmt.Errorf("初期メッセージの作成に失敗: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットフォーク処理失敗", "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットフォーク処理完了", "new_chat_uuid", newChatUUID)
+
+	return newChatUUID, nil
 }
