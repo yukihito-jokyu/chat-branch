@@ -16,6 +16,7 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	JWT      JWTConfig      `yaml:"jwt"`
 	Logger   LoggerConfig   `yaml:"logger"`
+	Gemini   GeminiConfig   `yaml:"gemini"`
 }
 
 type ServerConfig struct {
@@ -38,6 +39,10 @@ type JWTConfig struct {
 type LoggerConfig struct {
 	Level        string `yaml:"level"`
 	IsProduction bool   `yaml:"isProduction"`
+}
+
+type GeminiConfig struct {
+	APIKey string `yaml:"apiKey"`
 }
 
 // 指定されたパスから設定ファイルを読み込む処理
