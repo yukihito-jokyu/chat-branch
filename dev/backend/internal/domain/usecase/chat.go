@@ -12,4 +12,6 @@ type ChatUsecase interface {
 	GetChat(ctx context.Context, chatUUID string) (*model.Chat, error)
 	// チャットのメッセージ一覧を取得する
 	GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error)
+	// メッセージを送信する
+	SendMessage(ctx context.Context, chatUUID string, content string) (*model.Message, error)
 }

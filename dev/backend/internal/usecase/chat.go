@@ -137,3 +137,31 @@ func (u *chatUsecase) GetMessages(ctx context.Context, chatUUID string) ([]*mode
 	}
 	return messages, nil
 }
+
+// メッセージを送信する
+func (u *chatUsecase) SendMessage(ctx context.Context, chatUUID string, content string) (*model.Message, error) {
+	slog.InfoContext(ctx, "メッセージ送信処理開始", "chat_uuid", chatUUID)
+
+	// チャットの存在確認
+	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
+		return nil, err
+	}
+
+	message := &model.Message{
+		UUID:      uuid.New().String(),
+		ChatUUID:  chatUUID,
+		Role:      "user",
+		Content:   content,
+		CreatedAt: time.Now(),
+	}
+
+	if err := u.messageRepo.Create(ctx, message); err != nil {
+		slog.ErrorContext(ctx, "メッセージ保存失敗", "chat_uuid", chatUUID, "error", err)
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "メッセージ送信成功", "message_uuid", message.UUID)
+	return message, nil
+}
