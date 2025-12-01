@@ -27,3 +27,18 @@ type ForkResponse struct {
 type SendMessageRequest struct {
 	Content string `json:"content"`
 }
+
+type ForkChatRequest struct {
+	TargetMessageUUID string `json:"target_message_uuid"`
+	ParentChatUUID    string `json:"parent_chat_uuid"`
+	SelectedText      string `json:"selected_text"`
+	RangeStart        int    `json:"range_start"`
+	RangeEnd          int    `json:"range_end"`
+	Title             string `json:"title"`
+	ContextSummary    string `json:"context_summary"`
+}
+
+type ForkChatResponse struct {
+	NewChatID string `json:"new_chat_id"`
+	Message   string `json:"message"`
+}

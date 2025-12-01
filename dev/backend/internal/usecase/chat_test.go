@@ -91,12 +91,32 @@ func (m *MockGenAIClient) GenerateContent(ctx context.Context, model string, par
 	return args.Get(0).(*genai.GenerateContentResponse), args.Error(1)
 }
 
+type MockMessageSelectionRepository struct {
+	mock.Mock
+}
+
+func (m *MockMessageSelectionRepository) Create(ctx context.Context, selection *model.MessageSelection) error {
+	args := m.Called(ctx, selection)
+	return args.Error(0)
+}
+
+type MockTransactionManager struct {
+	mock.Mock
+}
+
+func (m *MockTransactionManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	args := m.Called(ctx, fn)
+	return args.Error(0)
+}
+
 func TestChatUsecase_FirstStreamChat(t *testing.T) {
 	type mocks struct {
-		chatRepo    *MockChatRepository
-		messageRepo *MockMessageRepository
-		genaiClient *MockGenAIClient
-		publisher   *MockPublisher
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
 	}
 	type args struct {
 		chatUUID string
@@ -221,14 +241,16 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mocks{
-				chatRepo:    &MockChatRepository{},
-				messageRepo: &MockMessageRepository{},
-				genaiClient: &MockGenAIClient{},
-				publisher:   &MockPublisher{},
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			outputChan := make(chan string, 10)
 			err := u.FirstStreamChat(context.Background(), tt.args.chatUUID, outputChan)
@@ -252,10 +274,12 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 
 func TestChatUsecase_GetChat(t *testing.T) {
 	type mocks struct {
-		chatRepo    *MockChatRepository
-		messageRepo *MockMessageRepository
-		genaiClient *MockGenAIClient
-		publisher   *MockPublisher
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
 	}
 	type args struct {
 		chatUUID string
@@ -297,14 +321,16 @@ func TestChatUsecase_GetChat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mocks{
-				chatRepo:    &MockChatRepository{},
-				messageRepo: &MockMessageRepository{},
-				genaiClient: &MockGenAIClient{},
-				publisher:   &MockPublisher{},
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GetChat(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -318,10 +344,12 @@ func TestChatUsecase_GetChat(t *testing.T) {
 
 func TestChatUsecase_GetMessages(t *testing.T) {
 	type mocks struct {
-		chatRepo    *MockChatRepository
-		messageRepo *MockMessageRepository
-		genaiClient *MockGenAIClient
-		publisher   *MockPublisher
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
 	}
 	type args struct {
 		chatUUID string
@@ -389,14 +417,16 @@ func TestChatUsecase_GetMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mocks{
-				chatRepo:    &MockChatRepository{},
-				messageRepo: &MockMessageRepository{},
-				genaiClient: &MockGenAIClient{},
-				publisher:   &MockPublisher{},
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GetMessages(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -410,10 +440,12 @@ func TestChatUsecase_GetMessages(t *testing.T) {
 
 func TestChatUsecase_SendMessage(t *testing.T) {
 	type mocks struct {
-		chatRepo    *MockChatRepository
-		messageRepo *MockMessageRepository
-		genaiClient *MockGenAIClient
-		publisher   *MockPublisher
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
 	}
 	type args struct {
 		chatUUID string
@@ -474,14 +506,16 @@ func TestChatUsecase_SendMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mocks{
-				chatRepo:    &MockChatRepository{},
-				messageRepo: &MockMessageRepository{},
-				genaiClient: &MockGenAIClient{},
-				publisher:   &MockPublisher{},
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.SendMessage(context.Background(), tt.args.chatUUID, tt.args.content)
 			if (err != nil) != tt.wantErr {
@@ -501,10 +535,12 @@ func TestChatUsecase_SendMessage(t *testing.T) {
 
 func TestChatUsecase_StreamMessage(t *testing.T) {
 	type mocks struct {
-		chatRepo    *MockChatRepository
-		messageRepo *MockMessageRepository
-		genaiClient *MockGenAIClient
-		publisher   *MockPublisher
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
 	}
 	type args struct {
 		chatUUID string
@@ -665,14 +701,16 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mocks{
-				chatRepo:    &MockChatRepository{},
-				messageRepo: &MockMessageRepository{},
-				genaiClient: &MockGenAIClient{},
-				publisher:   &MockPublisher{},
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			outputChan := make(chan string, 10)
 			err := u.StreamMessage(context.Background(), tt.args.chatUUID, outputChan)
@@ -692,6 +730,287 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 				} else {
 					assert.Equal(t, "world", output)
 				}
+			}
+		})
+	}
+}
+
+func TestChatUsecase_GenerateForkPreview(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+		req      model.ForkPreviewRequest
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      *model.ForkPreviewResponse
+		wantErr   bool
+	}{
+		{
+			name: "正常系: フォークプレビュー生成成功",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-2",
+					SelectedText:      "selected",
+					RangeStart:        0,
+					RangeEnd:          8,
+				},
+			},
+			setupMock: func(m *mocks) {
+				// 1. FindMessagesByChatID
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+					{UUID: "msg-2", Content: "world", Role: "assistant"},
+					{UUID: "msg-3", Content: "ignored", Role: "user"},
+				}, nil)
+
+				// 2. GenerateContent
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(&genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{Text: `{"suggested_title": "New Title", "generated_context": "New Context"}`},
+								},
+							},
+						},
+					},
+				}, nil)
+			},
+			want: &model.ForkPreviewResponse{
+				SuggestedTitle:   "New Title",
+				GeneratedContext: "New Context",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: メッセージ履歴取得失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-2",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: 対象メッセージが見つからない",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-999",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: GenAI呼び出し失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-1",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(nil, errors.New("genai error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: JSONパース失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-1",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(&genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{Text: `invalid json`},
+								},
+							},
+						},
+					},
+				}, nil)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.GenerateForkPreview(context.Background(), tt.args.chatUUID, tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.GenerateForkPreview() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestChatUsecase_ForkChat(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		params model.ForkChatParams
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      string
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットフォーク成功",
+			args: args{
+				params: model.ForkChatParams{
+					TargetMessageUUID: "msg-1",
+					ParentChatUUID:    "parent-chat",
+					SelectedText:      "selected",
+					RangeStart:        0,
+					RangeEnd:          8,
+					Title:             "New Chat",
+					ContextSummary:    "Summary",
+				},
+			},
+			setupMock: func(m *mocks) {
+				// 1. FindByID (Parent Chat)
+				m.chatRepo.On("FindByID", mock.Anything, "parent-chat").Return(&model.Chat{
+					UUID:        "parent-chat",
+					ProjectUUID: "project-1",
+				}, nil)
+
+				// 2. Transaction
+				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					fn := args.Get(1).(func(context.Context) error)
+					fn(context.Background())
+				})
+
+				// 3. Create MessageSelection
+				m.messageSelectionRepo.On("Create", mock.Anything, mock.MatchedBy(func(s *model.MessageSelection) bool {
+					return s.SelectedText == "selected"
+				})).Return(nil)
+
+				// 4. Create Chat
+				m.chatRepo.On("Create", mock.Anything, mock.MatchedBy(func(c *model.Chat) bool {
+					return c.Title == "New Chat" && c.ProjectUUID == "project-1" && *c.ParentUUID == "parent-chat"
+				})).Return(nil)
+
+				// 5. Create Message
+				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
+					return msg.Role == "assistant" && msg.Content == "New Chat\n\nSummary"
+				})).Return(nil)
+			},
+			want:    "new-chat-id", // UUIDはランダム生成なので、空文字でないことを確認する
+			wantErr: false,
+		},
+		{
+			name: "異常系: 親チャットが見つからない",
+			args: args{
+				params: model.ForkChatParams{
+					ParentChatUUID: "parent-chat",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "parent-chat").Return(nil, errors.New("not found"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "異常系: トランザクションエラー",
+			args: args{
+				params: model.ForkChatParams{
+					ParentChatUUID: "parent-chat",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "parent-chat").Return(&model.Chat{
+					UUID:        "parent-chat",
+					ProjectUUID: "project-1",
+				}, nil)
+
+				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(errors.New("tx error"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.ForkChat(context.Background(), tt.args.params)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.ForkChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.NotEmpty(t, got)
 			}
 		})
 	}

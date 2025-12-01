@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -34,18 +35,29 @@ func (w *GenAIClientWrapper) GenerateContent(ctx context.Context, model string, 
 }
 
 type chatUsecase struct {
-	chatRepo    repository.ChatRepository
-	messageRepo repository.MessageRepository
-	genaiClient domainUsecase.GenAIClient
-	publisher   message.Publisher
+	chatRepo             repository.ChatRepository
+	messageRepo          repository.MessageRepository
+	messageSelectionRepo repository.MessageSelectionRepository
+	transactionManager   repository.TransactionManager
+	genaiClient          domainUsecase.GenAIClient
+	publisher            message.Publisher
 }
 
-func NewChatUsecase(chatRepo repository.ChatRepository, messageRepo repository.MessageRepository, genaiClient domainUsecase.GenAIClient, publisher message.Publisher) domainUsecase.ChatUsecase {
+func NewChatUsecase(
+	chatRepo repository.ChatRepository,
+	messageRepo repository.MessageRepository,
+	messageSelectionRepo repository.MessageSelectionRepository,
+	transactionManager repository.TransactionManager,
+	genaiClient domainUsecase.GenAIClient,
+	publisher message.Publisher,
+) domainUsecase.ChatUsecase {
 	return &chatUsecase{
-		chatRepo:    chatRepo,
-		messageRepo: messageRepo,
-		genaiClient: genaiClient,
-		publisher:   publisher,
+		chatRepo:             chatRepo,
+		messageRepo:          messageRepo,
+		messageSelectionRepo: messageSelectionRepo,
+		transactionManager:   transactionManager,
+		genaiClient:          genaiClient,
+		publisher:            publisher,
 	}
 }
 
@@ -291,4 +303,232 @@ func (u *chatUsecase) SendMessage(ctx context.Context, chatUUID string, content 
 
 	slog.InfoContext(ctx, "メッセージ送信成功", "message_uuid", message.UUID)
 	return message, nil
+}
+
+// フォークプレビューを生成する
+func (u *chatUsecase) GenerateForkPreview(ctx context.Context, chatUUID string, req model.ForkPreviewRequest) (*model.ForkPreviewResponse, error) {
+	slog.InfoContext(ctx, "フォークプレビュー生成開始", "chat_uuid", chatUUID, "target_message_uuid", req.TargetMessageUUID)
+
+	// 1. メッセージ履歴の取得
+	allMessages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch messages: %w", err)
+	}
+
+	// 2. 対象メッセージの特定とサマリの探索
+	var targetMessage *model.Message
+	var latestSummaryMessage *model.Message
+	var targetIndex int = -1
+
+	// 対象メッセージのインデックスを探す
+	for i, msg := range allMessages {
+		if msg.UUID == req.TargetMessageUUID {
+			targetMessage = msg
+			targetIndex = i
+			break
+		}
+	}
+
+	if targetMessage == nil {
+		return nil, fmt.Errorf("target message not found")
+	}
+
+	// 対象メッセージから遡ってサマリを探す（対象メッセージ含む）
+	for i := targetIndex; i >= 0; i-- {
+		if allMessages[i].ContextSummary != nil && *allMessages[i].ContextSummary != "" {
+			latestSummaryMessage = allMessages[i]
+			break
+		}
+	}
+
+	// 3. プロンプト構築用のメッセージ抽出
+	var targetMessages []*model.Message
+
+	if latestSummaryMessage != nil {
+
+		startIndex := -1
+		for i, msg := range allMessages {
+			if msg.UUID == latestSummaryMessage.UUID {
+				startIndex = i
+				break
+			}
+		}
+
+		if startIndex != -1 && startIndex < targetIndex {
+			// サマリメッセージの次のメッセージから、対象メッセージの一つ前まで
+			targetMessages = allMessages[startIndex+1 : targetIndex]
+		} else if startIndex == targetIndex {
+			// 対象メッセージ自体がサマリを持っている場合、履歴は空
+			targetMessages = []*model.Message{}
+		}
+	} else {
+		// サマリがない場合
+		// 最初から対象メッセージの一つ前まで
+		targetMessages = allMessages[0:targetIndex]
+	}
+
+	// 4. プロンプト構築
+	var parts []*genai.Content
+
+	if latestSummaryMessage != nil && latestSummaryMessage.ContextSummary != nil {
+		parts = append(parts, &genai.Content{
+			Role: "user",
+			Parts: []*genai.Part{
+				{Text: "以下の会話の要約を踏まえてください:\n" + *latestSummaryMessage.ContextSummary},
+			},
+		})
+	}
+
+	for _, msg := range targetMessages {
+		role := "user"
+		if msg.Role == "assistant" {
+			role = "model"
+		}
+		parts = append(parts, &genai.Content{
+			Role: role,
+			Parts: []*genai.Part{
+				{Text: msg.Content},
+			},
+		})
+	}
+
+	// 対象メッセージの内容
+	// 対象メッセージは必ず含める（roleに応じて）
+	targetRole := "user"
+	if targetMessage.Role == "assistant" {
+		targetRole = "model"
+	}
+	parts = append(parts, &genai.Content{
+		Role: targetRole,
+		Parts: []*genai.Part{
+			{Text: targetMessage.Content},
+		},
+	})
+
+	// 指示プロンプト
+	prompt := fmt.Sprintf(`
+ユーザーは上記の会話の最後のメッセージの以下の部分を選択して、新しい話題（チャット）を開始しようとしています。
+選択範囲: "%s"
+(範囲: %d文字目から%d文字目)
+
+以下のJSON形式で、新しいチャットのタイトル案と、これまでの文脈を考慮した「新しいチャットの冒頭に設定するコンテキスト（要約）」を生成してください。
+コンテキストは、選択された話題について深掘りするための導入として機能するようにしてください。
+生成はJSONのみで良いです。説明は不要です。
+
+JSON形式:
+{
+  "suggested_title": "タイトル案",
+  "generated_context": "生成されたコンテキスト"
+}
+`, req.SelectedText, req.RangeStart, req.RangeEnd)
+
+	parts = append(parts, &genai.Content{
+		Role: "user",
+		Parts: []*genai.Part{
+			{Text: prompt},
+		},
+	})
+
+	// 5. GenAI 呼び出し
+	client := u.genaiClient
+	modelName := "gemini-2.5-flash"
+
+	config := &genai.GenerateContentConfig{
+		ResponseMIMEType: "application/json",
+	}
+
+	resp, err := client.GenerateContent(ctx, modelName, parts, config)
+	if err != nil {
+		return nil, fmt.Errorf("GenAI呼び出しに失敗: %w", err)
+	}
+
+	// 6. レスポンス解析
+	var generatedText string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				generatedText += part.Text
+			}
+		}
+	}
+
+	var result model.ForkPreviewResponse
+	if err := json.Unmarshal([]byte(generatedText), &result); err != nil {
+		return nil, fmt.Errorf("JSON出力に失敗: %w", err)
+	}
+
+	return &result, nil
+}
+
+// チャットをフォークする
+func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams) (string, error) {
+	slog.InfoContext(ctx, "チャットフォーク処理開始", "parent_chat_uuid", params.ParentChatUUID, "target_message_uuid", params.TargetMessageUUID)
+
+	// 1. 親チャットの存在確認
+	parentChat, err := u.chatRepo.FindByID(ctx, params.ParentChatUUID)
+	if err != nil {
+		return "", fmt.Errorf("親チャットの存在確認に失敗: %w", err)
+	}
+
+	// 2. トランザクション処理
+	// MessageSelection作成 -> Chat作成 -> Message作成
+	newChatUUID := uuid.New().String()
+	selectionUUID := uuid.New().String()
+	messageUUID := uuid.New().String()
+
+	err = u.transactionManager.Do(ctx, func(ctx context.Context) error {
+		// 2-1. MessageSelection作成
+		selection := &model.MessageSelection{
+			UUID:         selectionUUID,
+			SelectedText: params.SelectedText,
+			RangeStart:   params.RangeStart,
+			RangeEnd:     params.RangeEnd,
+			CreatedAt:    time.Now(),
+		}
+		if err := u.messageSelectionRepo.Create(ctx, selection); err != nil {
+			return fmt.Errorf("メッセージ選択の作成に失敗: %w", err)
+		}
+
+		// 2-2. Chat作成
+		newChat := &model.Chat{
+			UUID:                 newChatUUID,
+			ProjectUUID:          parentChat.ProjectUUID, // 親チャットと同じプロジェクト
+			ParentUUID:           &params.ParentChatUUID,
+			SourceMessageUUID:    &params.TargetMessageUUID,
+			MessageSelectionUUID: &selectionUUID,
+			Title:                params.Title,
+			Status:               "open",
+			ContextSummary:       params.ContextSummary,
+			CreatedAt:            time.Now(),
+			UpdatedAt:            time.Now(),
+		}
+		if err := u.chatRepo.Create(ctx, newChat); err != nil {
+			return fmt.Errorf("新しいチャットの作成に失敗: %w", err)
+		}
+
+		// 2-3. Message作成 (最初のメッセージ)
+		// タイトルとコンテキストサマリを結合した文章をユーザーメッセージとして保存
+		initialContent := fmt.Sprintf("%s\n\n%s", params.Title, params.ContextSummary)
+		message := &model.Message{
+			UUID:      messageUUID,
+			ChatUUID:  newChatUUID,
+			Role:      "assistant",
+			Content:   initialContent,
+			CreatedAt: time.Now(),
+		}
+		if err := u.messageRepo.Create(ctx, message); err != nil {
+			return fmt.Errorf("初期メッセージの作成に失敗: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットフォーク処理失敗", "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットフォーク処理完了", "new_chat_uuid", newChatUUID)
+
+	return newChatUUID, nil
 }

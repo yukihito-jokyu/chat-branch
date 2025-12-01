@@ -64,7 +64,8 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 
 	// Chat の依存関係注入
 	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
-	chatUsecase := usecase.NewChatUsecase(chatRepo, messageRepo, genaiClientWrapper, publisher)
+	messageSelectionRepo := repository.NewMessageSelectionRepository(db)
+	chatUsecase := usecase.NewChatUsecase(chatRepo, messageRepo, messageSelectionRepo, txManager, genaiClientWrapper, publisher)
 	chatHandler := handler.NewChatHandler(chatUsecase)
 
 	// Middleware の初期化
@@ -96,5 +97,7 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 		chat_router.POST("/:chat_uuid/message", chatHandler.SendMessage)
 		chat_router.GET("/:chat_uuid/messages/stream", chatHandler.StreamMessage)
 		chat_router.GET("/:chat_uuid/stream", chatHandler.FirstStreamChat)
+		chat_router.POST("/:chat_uuid/fork/preview", chatHandler.GenerateForkPreview)
+		chat_router.POST("/:chat_uuid/fork", chatHandler.ForkChat)
 	}
 }
