@@ -34,6 +34,14 @@ func (m *MockChatUsecase) FirstStreamChat(ctx context.Context, chatUUID string, 
 	return args.Error(1)
 }
 
+func (m *MockChatUsecase) StreamMessage(ctx context.Context, chatUUID string, outputChan chan<- string) error {
+	args := m.Called(ctx, chatUUID, outputChan)
+	if fn, ok := args.Get(0).(func(chan<- string)); ok && fn != nil {
+		fn(outputChan)
+	}
+	return args.Error(1)
+}
+
 func (m *MockChatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.Chat, error) {
 	args := m.Called(ctx, chatUUID)
 	if args.Get(0) == nil {
@@ -328,7 +336,7 @@ func TestChatHandler_SendMessage(t *testing.T) {
 				// 呼ばれない
 			},
 			wantStatus: http.StatusBadRequest,
-			wantBody:   `{"status":"error","message":"invalid request body"}`,
+			wantBody:   `{"status":"error","message":"リクエストボディのバインドに失敗しました"}`,
 		},
 		{
 			name: "異常系: コンテンツが空の場合",
@@ -340,7 +348,7 @@ func TestChatHandler_SendMessage(t *testing.T) {
 				// 呼ばれない
 			},
 			wantStatus: http.StatusBadRequest,
-			wantBody:   `{"status":"error","message":"content is required"}`,
+			wantBody:   `{"status":"error","message":"content が空です"}`,
 		},
 		{
 			name: "異常系: Usecaseがエラーを返した場合",
@@ -377,6 +385,79 @@ func TestChatHandler_SendMessage(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
+}
+
+func TestChatHandler_StreamMessage(t *testing.T) {
+	type mocks struct {
+		chatUsecase *MockChatUsecase
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		setupMock  func(m *mocks)
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "正常系: ストリームレスポンスが返ること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("StreamMessage", mock.Anything, "chat-uuid", mock.Anything).Return(func(ch chan<- string) {
+					ch <- "hello"
+					ch <- "world"
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   `data: {"chunk":"hello","status":"processing"}` + "\n\n\n" + `data: {"chunk":"world","status":"processing"}` + "\n\n\n" + `data: {"status":"done"}` + "\n\n\n",
+		},
+		{
+			name: "異常系: Usecaseがエラーを返した場合",
+			args: args{
+				chatUUID: "error-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("StreamMessage", mock.Anything, "error-uuid", mock.Anything).Return(nil, errors.New("usecase error"))
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/chats/"+tt.args.chatUUID+"/stream_message", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath("/api/chats/:chat_uuid/stream_message")
+			c.SetParamNames("chat_uuid")
+			c.SetParamValues(tt.args.chatUUID)
+
+			m := &mocks{
+				chatUsecase: &MockChatUsecase{},
+			}
+			tt.setupMock(m)
+
+			h := NewChatHandler(m.chatUsecase)
+
+			// ハンドラの実行
+			err := h.StreamMessage(c)
+
+			if tt.name == "異常系: Usecaseがエラーを返した場合" {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantStatus, rec.Code)
+				// ボディの検証
+				assert.Equal(t, tt.wantBody, rec.Body.String())
+			}
 		})
 	}
 }

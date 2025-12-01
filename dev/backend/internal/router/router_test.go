@@ -20,7 +20,7 @@ func TestInitRoutes(t *testing.T) {
 	}
 
 	// ルーティングの初期化
-	InitRoutes(e, db, cfg, nil)
+	InitRoutes(e, db, cfg, nil, nil)
 
 	// 期待されるルートの定義
 	// 今後エンドポイントが増えた場合はここに追加する
@@ -43,6 +43,41 @@ func TestInitRoutes(t *testing.T) {
 			method: "POST",
 			path:   "/api/auth/login",
 			name:   "Login",
+		},
+		{
+			method: "GET",
+			path:   "/api/projects",
+			name:   "GetProjects",
+		},
+		{
+			method: "POST",
+			path:   "/api/projects",
+			name:   "CreateProject",
+		},
+		{
+			method: "GET",
+			path:   "/api/chats/:chat_uuid",
+			name:   "GetChat",
+		},
+		{
+			method: "GET",
+			path:   "/api/chats/:chat_uuid/messages",
+			name:   "GetMessages",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/message",
+			name:   "SendMessage",
+		},
+		{
+			method: "GET",
+			path:   "/api/chats/:chat_uuid/messages/stream",
+			name:   "StreamMessage",
+		},
+		{
+			method: "GET",
+			path:   "/api/chats/:chat_uuid/stream",
+			name:   "FirstStreamChat",
 		},
 	}
 
