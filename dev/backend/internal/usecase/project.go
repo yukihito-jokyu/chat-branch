@@ -65,6 +65,7 @@ func (u *projectUsecase) CreateProject(ctx context.Context, userUUID, initialMes
 		UUID:        chatID,
 		ProjectUUID: projectID,
 		Title:       initialMessage, // チャットのタイトルも最初のメッセージとする
+		Status:      "open",         // 初期状態はopen
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
