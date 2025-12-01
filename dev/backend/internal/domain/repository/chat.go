@@ -10,4 +10,6 @@ type ChatRepository interface {
 	Create(ctx context.Context, chat *model.Chat) error
 	// チャットを取得する処理
 	FindByID(ctx context.Context, uuid string) (*model.Chat, error)
+	// チャットのステータスを更新する処理
+	UpdateStatus(ctx context.Context, chatUUID string, status string) error
 }

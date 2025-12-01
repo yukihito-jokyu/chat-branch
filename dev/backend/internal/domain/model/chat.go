@@ -41,3 +41,13 @@ type ForkChatParams struct {
 	Title             string
 	ContextSummary    string
 }
+
+type MergeChatParams struct {
+	ParentChatUUID string
+	SummaryContent string
+}
+
+type MergeChatResult struct {
+	ReportMessageID string
+	SummaryContent  string
+}

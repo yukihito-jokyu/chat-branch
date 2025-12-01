@@ -24,11 +24,15 @@ type ChatUsecase interface {
 	ForkChat(ctx context.Context, params model.ForkChatParams) (string, error)
 	// マージプレビューを生成する
 	GetMergePreview(ctx context.Context, chatUUID string) (*model.MergePreview, error)
+	// チャットをマージする
+	MergeChat(ctx context.Context, chatUUID string, params model.MergeChatParams) (*model.MergeChatResult, error)
 }
 
 // GenAIClient は GenAI クライアントのインターフェース
 // モック化のために定義
 type GenAIClient interface {
+	// GenerateContentStream は GenerateContentStream を定義
 	GenerateContentStream(ctx context.Context, model string, parts []*genai.Content, config *genai.GenerateContentConfig) func(func(*genai.GenerateContentResponse, error) bool)
+	// GenerateContent は GenerateContent を定義
 	GenerateContent(ctx context.Context, model string, parts []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 }

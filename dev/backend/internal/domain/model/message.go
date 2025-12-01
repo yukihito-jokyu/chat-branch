@@ -10,12 +10,14 @@ type Fork struct {
 }
 
 type Message struct {
-	UUID           string
-	ChatUUID       string
-	Role           string // user or assistant
-	Content        string
-	ContextSummary *string
-	SourceChatUUID *string
-	Forks          []Fork
-	CreatedAt      time.Time
+	UUID              string
+	ChatUUID          string
+	ParentMessageUUID *string // 追加
+	Role              string  // user or assistant
+	Content           string
+	ContextSummary    *string
+	SourceChatUUID    *string
+	Forks             []Fork
+	MergeReports      []*Message
+	CreatedAt         time.Time
 }
