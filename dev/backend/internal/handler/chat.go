@@ -341,3 +341,26 @@ func (h *chatHandler) ForkChat(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, res)
 }
+
+// マージプレビューを生成する
+func (h *chatHandler) GetMergePreview(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	slog.InfoContext(ctx, "GetMergePreview リクエスト受信", "chat_uuid", chatUUID)
+
+	preview, err := h.chatUsecase.GetMergePreview(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "GetMergePreview エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := handlerModel.MergePreviewResponse{
+		SuggestedSummary: preview.SuggestedSummary,
+	}
+
+	return c.JSON(http.StatusOK, res)
+}

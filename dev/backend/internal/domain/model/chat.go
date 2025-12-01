@@ -15,6 +15,10 @@ type Chat struct {
 	UpdatedAt            time.Time
 }
 
+type MergePreview struct {
+	SuggestedSummary string
+}
+
 // usecase から呼び出されるのでここに配置する
 type ForkPreviewRequest struct {
 	TargetMessageUUID string `json:"target_message_uuid"`

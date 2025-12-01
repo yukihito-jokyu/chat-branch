@@ -17,6 +17,15 @@ type MessageResponse struct {
 	SourceChatUUID *string        `json:"source_chat_uuid,omitempty"`
 }
 
+type ForkPreviewResponse struct {
+	SuggestedTitle   string `json:"suggested_title"`
+	GeneratedContext string `json:"generated_context"`
+}
+
+type MergePreviewResponse struct {
+	SuggestedSummary string `json:"suggested_summary"`
+}
+
 type ForkResponse struct {
 	ChatUUID     string `json:"chat_uuid"`
 	SelectedText string `json:"selected_text"`

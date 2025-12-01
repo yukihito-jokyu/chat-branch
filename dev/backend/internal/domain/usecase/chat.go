@@ -22,6 +22,8 @@ type ChatUsecase interface {
 	GenerateForkPreview(ctx context.Context, chatUUID string, req model.ForkPreviewRequest) (*model.ForkPreviewResponse, error)
 	// チャットをフォークする
 	ForkChat(ctx context.Context, params model.ForkChatParams) (string, error)
+	// マージプレビューを生成する
+	GetMergePreview(ctx context.Context, chatUUID string) (*model.MergePreview, error)
 }
 
 // GenAIClient は GenAI クライアントのインターフェース
