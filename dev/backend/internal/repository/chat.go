@@ -12,22 +12,20 @@ import (
 )
 
 type chatORM struct {
-	UUID              string    `gorm:"primaryKey;column:uuid;size:255"`
-	ProjectUUID       string    `gorm:"column:project_uuid;size:255"`
-	ParentChatUUID    *string   `gorm:"column:parent_chat_uuid;size:255"`
-	SourceMessageUUID *string   `gorm:"column:source_message_uuid;size:255"`
-	SelectedText      *string   `gorm:"column:selected_text;type:text"`
-	RangeStart        *int      `gorm:"column:range_start"`
-	RangeEnd          *int      `gorm:"column:range_end"`
-	Title             string    `gorm:"column:title;size:255"`
-	Status            string    `gorm:"column:status;size:50"`
-	ContextSummary    *string   `gorm:"column:context_summary;type:text"`
-	PositionX         float64   `gorm:"column:position_x"`
-	PositionY         float64   `gorm:"column:position_y"`
-	CreatedID         string    `gorm:"column:created_id;size:255"`
-	CreatedAt         time.Time `gorm:"column:created_at"`
-	UpdatedAt         time.Time `gorm:"column:updated_at"`
-	UpdatedID         *string   `gorm:"column:updated_id;size:255"`
+	UUID                 string    `gorm:"primaryKey;column:uuid;size:255"`
+	ProjectUUID          string    `gorm:"column:project_uuid;size:255"`
+	ParentChatUUID       *string   `gorm:"column:parent_chat_uuid;size:255"`
+	SourceMessageUUID    *string   `gorm:"column:source_message_uuid;size:255"`
+	MessageSelectionUUID *string   `gorm:"column:message_selection_uuid;size:255"`
+	Title                string    `gorm:"column:title;size:255"`
+	Status               string    `gorm:"column:status;size:50"`
+	ContextSummary       *string   `gorm:"column:context_summary;type:text"`
+	PositionX            float64   `gorm:"column:position_x"`
+	PositionY            float64   `gorm:"column:position_y"`
+	CreatedID            string    `gorm:"column:created_id;size:255"`
+	CreatedAt            time.Time `gorm:"column:created_at"`
+	UpdatedAt            time.Time `gorm:"column:updated_at"`
+	UpdatedID            *string   `gorm:"column:updated_id;size:255"`
 }
 
 func (chatORM) TableName() string {

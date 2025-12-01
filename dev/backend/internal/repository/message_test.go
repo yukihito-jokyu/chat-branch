@@ -10,6 +10,22 @@ import (
 	"gorm.io/gorm"
 )
 
+type messageSelectionORM struct {
+	UUID         string `gorm:"primaryKey;column:uuid;size:255"`
+	SelectedText string `gorm:"column:selected_text;type:text"`
+	RangeStart   int    `gorm:"column:range_start"`
+	RangeEnd     int    `gorm:"column:range_end"`
+	CreatedID    string `gorm:"column:created_id;size:255"`
+}
+
+func (messageSelectionORM) TableName() string {
+	return "message_selections"
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
 func TestMessageRepository_Create(t *testing.T) {
 	type args struct {
 		message *model.Message
@@ -127,6 +143,74 @@ func TestMessageRepository_FindMessagesByChatID(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			name: "正常系: フォーク情報を含むメッセージが取得できること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupData: func(db *gorm.DB) {
+				// メッセージの作成
+				db.Create(&messageORM{
+					UUID:      "msg-1",
+					ChatUUID:  "chat-uuid",
+					Role:      "assistant",
+					Content:   "parent message",
+					CreatedAt: time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
+				})
+
+				// message_selections テーブルの作成とデータ投入
+
+				if err := db.AutoMigrate(&messageSelectionORM{}); err != nil {
+					panic(err)
+				}
+				db.Create(&messageSelectionORM{
+					UUID:         "selection-1",
+					SelectedText: "selected",
+					RangeStart:   0,
+					RangeEnd:     5,
+					CreatedID:    "test",
+				})
+
+				// chats テーブルの作成とデータ投入 (フォーク用)
+				if err := db.AutoMigrate(&chatORM{}); err != nil {
+					panic(err)
+				}
+				db.Create(&chatORM{
+					UUID:                 "child-chat-1",
+					ProjectUUID:          "project-1",
+					SourceMessageUUID:    strPtr("msg-1"),
+					MessageSelectionUUID: strPtr("selection-1"),
+					Title:                "child chat",
+					Status:               "open",
+					CreatedID:            "test",
+				})
+			},
+			wantLen: 1,
+			wantErr: false,
+		},
+		{
+			name: "異常系: フォーク取得時にDBエラーが発生した場合エラーになること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupData: func(db *gorm.DB) {
+				// メッセージを作成して、最初のクエリが成功するようにする
+				db.Create(&messageORM{
+					UUID:      "msg-1",
+					ChatUUID:  "chat-uuid",
+					Role:      "user",
+					Content:   "hello",
+					CreatedAt: time.Now(),
+				})
+
+				// 2番目のクエリが失敗するようにテーブルを削除する
+				if err := db.Migrator().DropTable(&messageSelectionORM{}); err != nil {
+					panic(err)
+				}
+			},
+			wantLen: 0,
+			wantErr: true,
+		},
+		{
 			name: "異常系: DBエラーが発生した場合エラーになること",
 			args: args{
 				chatUUID: "chat-uuid",
@@ -147,7 +231,7 @@ func TestMessageRepository_FindMessagesByChatID(t *testing.T) {
 				t.Fatalf("failed to connect database: %v", err)
 			}
 			// マイグレーション
-			if err := db.AutoMigrate(&messageORM{}); err != nil {
+			if err := db.AutoMigrate(&messageORM{}, &chatORM{}, &messageSelectionORM{}); err != nil {
 				t.Fatalf("failed to migrate database: %v", err)
 			}
 
