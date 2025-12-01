@@ -1,6 +1,7 @@
 package handler
 
 import (
+	domainModel "backend/internal/domain/model"
 	"backend/internal/domain/usecase"
 	"backend/internal/handler/model"
 	"encoding/json"
@@ -266,5 +267,31 @@ func (h *chatHandler) SendMessage(c echo.Context) error {
 	}
 
 	slog.InfoContext(ctx, "メッセージ送信成功", "chat_uuid", chatUUID, "message_uuid", message.UUID)
+	return c.JSON(http.StatusOK, res)
+}
+
+// フォークプレビューを生成する
+func (h *chatHandler) GenerateForkPreview(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	var req domainModel.ForkPreviewRequest
+	if err := c.Bind(&req); err != nil {
+		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "リクエストボディのバインドに失敗しました",
+		})
+	}
+
+	res, err := h.chatUsecase.GenerateForkPreview(ctx, chatUUID, req)
+	if err != nil {
+		slog.ErrorContext(ctx, "GenerateForkPreview エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
 	return c.JSON(http.StatusOK, res)
 }

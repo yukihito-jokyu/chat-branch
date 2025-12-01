@@ -66,6 +66,14 @@ func (m *MockChatUsecase) SendMessage(ctx context.Context, chatUUID string, cont
 	return args.Get(0).(*model.Message), args.Error(1)
 }
 
+func (m *MockChatUsecase) GenerateForkPreview(ctx context.Context, chatUUID string, req model.ForkPreviewRequest) (*model.ForkPreviewResponse, error) {
+	args := m.Called(ctx, chatUUID, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.ForkPreviewResponse), args.Error(1)
+}
+
 func TestChatHandler_FirstStreamChat(t *testing.T) {
 	type mocks struct {
 		chatUsecase *MockChatUsecase
@@ -458,6 +466,92 @@ func TestChatHandler_StreamMessage(t *testing.T) {
 				// ボディの検証
 				assert.Equal(t, tt.wantBody, rec.Body.String())
 			}
+		})
+	}
+}
+
+func TestChatHandler_GenerateForkPreview(t *testing.T) {
+	type mocks struct {
+		chatUsecase *MockChatUsecase
+	}
+	type args struct {
+		chatUUID string
+		body     string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		setupMock  func(m *mocks)
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "正常系: プレビュー生成が成功すること",
+			args: args{
+				chatUUID: "chat-uuid",
+				body:     `{"target_message_uuid": "msg-uuid", "selected_text": "hello", "range_start": 0, "range_end": 5}`,
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("GenerateForkPreview", mock.Anything, "chat-uuid", model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-uuid",
+					SelectedText:      "hello",
+					RangeStart:        0,
+					RangeEnd:          5,
+				}).Return(&model.ForkPreviewResponse{
+					SuggestedTitle:   "Suggested Title",
+					GeneratedContext: "Generated Context",
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"suggested_title":"Suggested Title","generated_context":"Generated Context"}`,
+		},
+		{
+			name: "異常系: リクエストボディが不正な場合",
+			args: args{
+				chatUUID: "chat-uuid",
+				body:     `invalid json`,
+			},
+			setupMock: func(m *mocks) {
+				// 呼ばれない
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `{"status":"error","message":"リクエストボディのバインドに失敗しました"}`,
+		},
+		{
+			name: "異常系: Usecaseがエラーを返した場合",
+			args: args{
+				chatUUID: "chat-uuid",
+				body:     `{"target_message_uuid": "msg-uuid", "selected_text": "hello", "range_start": 0, "range_end": 5}`,
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("GenerateForkPreview", mock.Anything, "chat-uuid", mock.Anything).Return(nil, errors.New("genai error"))
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"status":"error","message":"genai error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPost, "/api/chats/"+tt.args.chatUUID+"/fork/preview", strings.NewReader(tt.args.body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath("/api/chats/:chat_uuid/fork/preview")
+			c.SetParamNames("chat_uuid")
+			c.SetParamValues(tt.args.chatUUID)
+
+			m := &mocks{
+				chatUsecase: &MockChatUsecase{},
+			}
+			tt.setupMock(m)
+
+			h := NewChatHandler(m.chatUsecase)
+			err := h.GenerateForkPreview(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
 		})
 	}
 }

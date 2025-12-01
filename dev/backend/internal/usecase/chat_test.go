@@ -696,3 +696,161 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestChatUsecase_GenerateForkPreview(t *testing.T) {
+	type mocks struct {
+		chatRepo    *MockChatRepository
+		messageRepo *MockMessageRepository
+		genaiClient *MockGenAIClient
+		publisher   *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+		req      model.ForkPreviewRequest
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      *model.ForkPreviewResponse
+		wantErr   bool
+	}{
+		{
+			name: "正常系: フォークプレビュー生成成功",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-2",
+					SelectedText:      "selected",
+					RangeStart:        0,
+					RangeEnd:          8,
+				},
+			},
+			setupMock: func(m *mocks) {
+				// 1. FindMessagesByChatID
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+					{UUID: "msg-2", Content: "world", Role: "assistant"},
+					{UUID: "msg-3", Content: "ignored", Role: "user"},
+				}, nil)
+
+				// 2. GenerateContent
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(&genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{Text: `{"suggested_title": "New Title", "generated_context": "New Context"}`},
+								},
+							},
+						},
+					},
+				}, nil)
+			},
+			want: &model.ForkPreviewResponse{
+				SuggestedTitle:   "New Title",
+				GeneratedContext: "New Context",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: メッセージ履歴取得失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-2",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: 対象メッセージが見つからない",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-999",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: GenAI呼び出し失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-1",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(nil, errors.New("genai error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: JSONパース失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+				req: model.ForkPreviewRequest{
+					TargetMessageUUID: "msg-1",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{UUID: "msg-1", Content: "hello", Role: "user"},
+				}, nil)
+
+				m.genaiClient.On("GenerateContent", mock.Anything, "gemini-2.5-flash", mock.Anything, mock.Anything).Return(&genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{Text: `invalid json`},
+								},
+							},
+						},
+					},
+				}, nil)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:    &MockChatRepository{},
+				messageRepo: &MockMessageRepository{},
+				genaiClient: &MockGenAIClient{},
+				publisher:   &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.genaiClient, m.publisher)
+
+			got, err := u.GenerateForkPreview(context.Background(), tt.args.chatUUID, tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.GenerateForkPreview() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
