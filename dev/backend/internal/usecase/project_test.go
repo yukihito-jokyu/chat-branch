@@ -63,6 +63,19 @@ func (m *mockMessageRepository) FindMessagesByChatID(ctx context.Context, chatUU
 	return args.Get(0).([]*model.Message), args.Error(1)
 }
 
+func (m *mockMessageRepository) UpdateContextSummary(ctx context.Context, messageUUID string, summary string) error {
+	args := m.Called(ctx, messageUUID, summary)
+	return args.Error(0)
+}
+
+func (m *mockMessageRepository) FindLatestMessageWithSummary(ctx context.Context, chatUUID string) (*model.Message, error) {
+	args := m.Called(ctx, chatUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
 type mockTransactionManager struct {
 	mock.Mock
 }
