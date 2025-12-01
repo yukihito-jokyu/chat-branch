@@ -90,6 +90,14 @@ func (m *MockChatUsecase) GetMergePreview(ctx context.Context, chatUUID string) 
 	return args.Get(0).(*model.MergePreview), args.Error(1)
 }
 
+func (m *MockChatUsecase) MergeChat(ctx context.Context, chatUUID string, params model.MergeChatParams) (*model.MergeChatResult, error) {
+	args := m.Called(ctx, chatUUID, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.MergeChatResult), args.Error(1)
+}
+
 func TestChatHandler_FirstStreamChat(t *testing.T) {
 	type mocks struct {
 		chatUsecase *MockChatUsecase
@@ -278,7 +286,7 @@ func TestChatHandler_GetMessages(t *testing.T) {
 				}, nil)
 			},
 			wantStatus: http.StatusOK,
-			wantBody:   `[{"uuid":"msg-1","role":"user","content":"hello","forks":[{"chat_uuid":"child-chat","selected_text":"hello","range_start":0,"range_end":5}]}]`,
+			wantBody:   `[{"uuid":"msg-1","role":"user","content":"hello","forks":[{"chat_uuid":"child-chat","selected_text":"hello","range_start":0,"range_end":5}],"merge_reports":[]}]`,
 		},
 		{
 			name: "異常系: Usecaseがエラーを返した場合",
@@ -348,7 +356,7 @@ func TestChatHandler_SendMessage(t *testing.T) {
 				}, nil)
 			},
 			wantStatus: http.StatusOK,
-			wantBody:   `{"uuid":"msg-uuid","role":"user","content":"hello","forks":[]}`,
+			wantBody:   `{"uuid":"msg-uuid","role":"user","content":"hello","forks":[],"merge_reports":[]}`,
 		},
 		{
 			name: "異常系: リクエストボディが不正な場合",
@@ -732,6 +740,90 @@ func TestChatHandler_GetMergePreview(t *testing.T) {
 
 			h := NewChatHandler(m.chatUsecase)
 			err := h.GetMergePreview(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
+}
+
+func TestChatHandler_MergeChat(t *testing.T) {
+	type mocks struct {
+		chatUsecase *MockChatUsecase
+	}
+	type args struct {
+		chatUUID string
+		body     string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		setupMock  func(m *mocks)
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "正常系: マージリクエストが成功すること",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				body:     `{"parent_chat_uuid": "parent-chat-uuid", "summary_content": "summary"}`,
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("MergeChat", mock.Anything, "child-chat-uuid", model.MergeChatParams{
+					ParentChatUUID: "parent-chat-uuid",
+					SummaryContent: "summary",
+				}).Return(&model.MergeChatResult{
+					ReportMessageID: "report-msg-id",
+					SummaryContent:  "summary",
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"report_message_id":"report-msg-id","summary_content":"summary"}`,
+		},
+		{
+			name: "異常系: リクエストボディが不正な場合",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				body:     `invalid json`,
+			},
+			setupMock: func(m *mocks) {
+				// 呼ばれない
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `{"status":"error","message":"リクエストボディのバインドに失敗しました"}`,
+		},
+		{
+			name: "異常系: Usecaseがエラーを返した場合",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				body:     `{"parent_chat_uuid": "parent-chat-uuid", "summary_content": "summary"}`,
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("MergeChat", mock.Anything, "child-chat-uuid", mock.Anything).Return(nil, errors.New("usecase error"))
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"status":"error","message":"usecase error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPost, "/api/chats/"+tt.args.chatUUID+"/merge", strings.NewReader(tt.args.body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath("/api/chats/:chat_uuid/merge")
+			c.SetParamNames("chat_uuid")
+			c.SetParamValues(tt.args.chatUUID)
+
+			m := &mocks{
+				chatUsecase: &MockChatUsecase{},
+			}
+			tt.setupMock(m)
+
+			h := NewChatHandler(m.chatUsecase)
+			err := h.MergeChat(c)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, rec.Code)

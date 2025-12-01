@@ -100,5 +100,6 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 		chat_router.POST("/:chat_uuid/fork/preview", chatHandler.GenerateForkPreview)
 		chat_router.POST("/:chat_uuid/fork", chatHandler.ForkChat)
 		chat_router.POST("/:chat_uuid/merge/preview", chatHandler.GetMergePreview)
+		chat_router.POST("/:chat_uuid/merge", chatHandler.MergeChat)
 	}
 }

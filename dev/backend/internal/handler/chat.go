@@ -205,23 +205,7 @@ func (h *chatHandler) GetMessages(c echo.Context) error {
 
 	res := make([]model.MessageResponse, len(messages))
 	for i, m := range messages {
-		forks := make([]model.ForkResponse, len(m.Forks))
-		for j, f := range m.Forks {
-			forks[j] = model.ForkResponse{
-				ChatUUID:     f.ChatUUID,
-				SelectedText: f.SelectedText,
-				RangeStart:   f.RangeStart,
-				RangeEnd:     f.RangeEnd,
-			}
-		}
-
-		res[i] = model.MessageResponse{
-			UUID:           m.UUID,
-			Role:           m.Role,
-			Content:        m.Content,
-			Forks:          forks,
-			SourceChatUUID: m.SourceChatUUID,
-		}
+		res[i] = mapMessageToResponse(m)
 	}
 
 	slog.InfoContext(ctx, "メッセージ一覧の取得に成功", "chat_uuid", chatUUID, "count", len(res))
@@ -264,7 +248,8 @@ func (h *chatHandler) SendMessage(c echo.Context) error {
 		Content:        message.Content,
 		SourceChatUUID: message.SourceChatUUID,
 		// Forks は新規作成時は空
-		Forks: []model.ForkResponse{},
+		Forks:        []model.ForkResponse{},
+		MergeReports: []model.MessageResponse{},
 	}
 
 	slog.InfoContext(ctx, "メッセージ送信成功", "chat_uuid", chatUUID, "message_uuid", message.UUID)
@@ -363,4 +348,68 @@ func (h *chatHandler) GetMergePreview(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, res)
+}
+
+// チャットをマージする
+func (h *chatHandler) MergeChat(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	slog.InfoContext(ctx, "MergeChat リクエスト受信", "chat_uuid", chatUUID)
+
+	var req handlerModel.MergeChatRequest
+	if err := c.Bind(&req); err != nil {
+		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "リクエストボディのバインドに失敗しました",
+		})
+	}
+
+	params := domainModel.MergeChatParams{
+		ParentChatUUID: req.ParentChatUUID,
+		SummaryContent: req.SummaryContent,
+	}
+
+	result, err := h.chatUsecase.MergeChat(ctx, chatUUID, params)
+	if err != nil {
+		slog.ErrorContext(ctx, "MergeChat エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := handlerModel.MergeChatResponse{
+		ReportMessageID: result.ReportMessageID,
+		SummaryContent:  result.SummaryContent,
+	}
+
+	return c.JSON(http.StatusOK, res)
+}
+
+func mapMessageToResponse(m *domainModel.Message) model.MessageResponse {
+	forks := make([]model.ForkResponse, len(m.Forks))
+	for j, f := range m.Forks {
+		forks[j] = model.ForkResponse{
+			ChatUUID:     f.ChatUUID,
+			SelectedText: f.SelectedText,
+			RangeStart:   f.RangeStart,
+			RangeEnd:     f.RangeEnd,
+		}
+	}
+
+	mergeReports := make([]model.MessageResponse, len(m.MergeReports))
+	for j, r := range m.MergeReports {
+		mergeReports[j] = mapMessageToResponse(r)
+	}
+
+	return model.MessageResponse{
+		UUID:           m.UUID,
+		Role:           m.Role,
+		Content:        m.Content,
+		Forks:          forks,
+		SourceChatUUID: m.SourceChatUUID,
+		MergeReports:   mergeReports,
+	}
 }
