@@ -4,10 +4,12 @@ import (
 	"backend/config"
 	"backend/internal/router"
 	"backend/pkg/logger"
+	"context"
 	"log"
 	"os"
 
 	"github.com/labstack/echo/v4"
+	"google.golang.org/genai"
 )
 
 // アプリケーションのエントリーポイント
@@ -33,11 +35,20 @@ func main() {
 		log.Fatalf("データベース接続に失敗: %v", err)
 	}
 
+	// GenAI クライアントの初期化
+	genaiClient, err := genai.NewClient(context.Background(), &genai.ClientConfig{
+		APIKey: cfg.Gemini.APIKey,
+	})
+	if err != nil {
+		log.Fatalf("GenAIクライアントの作成に失敗: %v", err)
+	}
+	// defer genaiClient.Close() // main関数終了時に閉じる必要はないが、明示的に書くならここ
+
 	// Echo インスタンス
 	e := echo.New()
 
 	// ルーティング
-	router.InitRoutes(e, db, cfg)
+	router.InitRoutes(e, db, cfg, genaiClient)
 
 	// サーバーの起動
 	e.Logger.Fatal(e.Start(cfg.Server.Address))

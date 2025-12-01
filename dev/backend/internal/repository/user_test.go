@@ -23,7 +23,7 @@ func TestUserRepository_Create(t *testing.T) {
 			name: "正常系: ユーザーが作成できること",
 			args: args{
 				user: &model.User{
-					ID:   "test-uuid",
+					UUID: "test-uuid",
 					Name: "test-user",
 				},
 			},
@@ -33,7 +33,7 @@ func TestUserRepository_Create(t *testing.T) {
 			name: "異常系: IDが重複している場合エラーになること",
 			args: args{
 				user: &model.User{
-					ID:   "duplicate-uuid",
+					UUID: "duplicate-uuid",
 					Name: "duplicate-user",
 				},
 			},
@@ -49,7 +49,7 @@ func TestUserRepository_Create(t *testing.T) {
 				t.Fatalf("failed to connect database: %v", err)
 			}
 			// マイグレーション
-			if err := db.AutoMigrate(&userDTO{}); err != nil {
+			if err := db.AutoMigrate(&userORM{}); err != nil {
 				t.Fatalf("failed to migrate database: %v", err)
 			}
 
@@ -86,14 +86,14 @@ func TestUserRepository_FindByID(t *testing.T) {
 				id: "test-uuid",
 			},
 			setupData: func(db *gorm.DB) {
-				db.Create(&userDTO{
+				db.Create(&userORM{
 					ID:        "test-uuid",
 					Name:      "test-user",
 					CreatedID: "test-uuid",
 				})
 			},
 			want: &model.User{
-				ID:   "test-uuid",
+				UUID: "test-uuid",
 				Name: "test-user",
 			},
 			wantErr: false,
@@ -129,7 +129,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 				t.Fatalf("failed to connect database: %v", err)
 			}
 			// マイグレーション
-			if err := db.AutoMigrate(&userDTO{}); err != nil {
+			if err := db.AutoMigrate(&userORM{}); err != nil {
 				t.Fatalf("failed to migrate database: %v", err)
 			}
 
@@ -137,7 +137,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 			tt.setupData(db)
 
 			r := NewUserRepository(db)
-			got, err := r.FindByID(context.Background(), tt.args.id)
+			got, err := r.FindByUUID(context.Background(), tt.args.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("userRepository.FindByID() error = %v, wantErr %v", err, tt.wantErr)
 				return

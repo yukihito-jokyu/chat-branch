@@ -15,3 +15,6 @@ jwt:
 logger:
   level: "debug"
   isProduction: true
+
+gemini:
+  apiKey: "gemini-api-key"

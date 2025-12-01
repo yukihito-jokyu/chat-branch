@@ -20,7 +20,7 @@ func TestInitRoutes(t *testing.T) {
 	}
 
 	// ルーティングの初期化
-	InitRoutes(e, db, cfg)
+	InitRoutes(e, db, cfg, nil)
 
 	// 期待されるルートの定義
 	// 今後エンドポイントが増えた場合はここに追加する
