@@ -2,10 +2,15 @@ package main
 
 import (
 	"backend/config"
+	"backend/internal/infrastructure/queue"
+	"backend/internal/repository"
 	"backend/internal/router"
+	"backend/internal/usecase"
+	"backend/internal/worker"
 	"backend/pkg/logger"
 	"context"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/labstack/echo/v4"
@@ -47,8 +52,37 @@ func main() {
 	// Echo インスタンス
 	e := echo.New()
 
+	// Watermill Publisher の初期化
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("DB接続の取得に失敗: %v", err)
+	}
+	publisher, err := queue.NewPublisher(sqlDB, slog.Default())
+	if err != nil {
+		log.Fatalf("Publisherの作成に失敗: %v", err)
+	}
+	defer publisher.Close()
+
+	// Watermill Subscriber の初期化
+	subscriber, err := queue.NewSubscriber(sqlDB, slog.Default())
+	if err != nil {
+		log.Fatalf("Subscriberの作成に失敗: %v", err)
+	}
+	defer subscriber.Close()
+
+	// Worker の初期化と起動
+	messageRepo := repository.NewMessageRepository(db)
+	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
+	summaryWorker := worker.NewSummaryWorker(subscriber, messageRepo, genaiClientWrapper)
+
+	go func() {
+		if err := summaryWorker.Run(context.Background()); err != nil {
+			slog.Error("SummaryWorker failed", "error", err)
+		}
+	}()
+
 	// ルーティング
-	router.InitRoutes(e, db, cfg, genaiClient)
+	router.InitRoutes(e, db, cfg, genaiClient, publisher)
 
 	// サーバーの起動
 	e.Logger.Fatal(e.Start(cfg.Server.Address))
