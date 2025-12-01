@@ -3,6 +3,8 @@ package usecase
 import (
 	"backend/internal/domain/model"
 	"context"
+
+	"google.golang.org/genai"
 )
 
 type ChatUsecase interface {
@@ -14,4 +16,13 @@ type ChatUsecase interface {
 	GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error)
 	// メッセージを送信する
 	SendMessage(ctx context.Context, chatUUID string, content string) (*model.Message, error)
+	// メッセージをストリーミング送信する
+	StreamMessage(ctx context.Context, chatUUID string, outputChan chan<- string) error
+}
+
+// GenAIClient は GenAI クライアントのインターフェース
+// モック化のために定義
+type GenAIClient interface {
+	GenerateContentStream(ctx context.Context, model string, parts []*genai.Content, config *genai.GenerateContentConfig) func(func(*genai.GenerateContentResponse, error) bool)
+	GenerateContent(ctx context.Context, model string, parts []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 }
