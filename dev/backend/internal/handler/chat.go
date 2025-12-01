@@ -1,8 +1,8 @@
 package handler
 
 import (
+	"backend/internal/domain/usecase"
 	"backend/internal/handler/model"
-	"backend/internal/usecase"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -16,6 +16,8 @@ type ChatHandler interface {
 	FirstStreamChat(c echo.Context) error
 	// チャットを取得する
 	GetChat(c echo.Context) error
+	// チャットのメッセージ一覧を取得する
+	GetMessages(c echo.Context) error
 }
 
 type chatHandler struct {
@@ -102,6 +104,8 @@ func (h *chatHandler) GetChat(c echo.Context) error {
 	chatUUID := c.Param("chat_uuid")
 	ctx := c.Request().Context()
 
+	slog.InfoContext(ctx, "GetChat リクエスト受信", "chat_uuid", chatUUID)
+
 	chat, err := h.chatUsecase.GetChat(ctx, chatUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "GetChat エラー", "error", err)
@@ -121,5 +125,44 @@ func (h *chatHandler) GetChat(c echo.Context) error {
 	}
 
 	slog.InfoContext(ctx, "チャットの取得に成功", "chat_uuid", chat.UUID)
+	return c.JSON(http.StatusOK, res)
+}
+
+// チャットのメッセージ一覧を取得する
+func (h *chatHandler) GetMessages(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	messages, err := h.chatUsecase.GetMessages(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "GetMessages エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := make([]model.MessageResponse, len(messages))
+	for i, m := range messages {
+		forks := make([]model.ForkResponse, len(m.Forks))
+		for j, f := range m.Forks {
+			forks[j] = model.ForkResponse{
+				ChatUUID:     f.ChatUUID,
+				SelectedText: f.SelectedText,
+				RangeStart:   f.RangeStart,
+				RangeEnd:     f.RangeEnd,
+			}
+		}
+
+		res[i] = model.MessageResponse{
+			UUID:           m.UUID,
+			Role:           m.Role,
+			Content:        m.Content,
+			Forks:          forks,
+			SourceChatUUID: m.SourceChatUUID,
+		}
+	}
+
+	slog.InfoContext(ctx, "メッセージ一覧の取得に成功", "chat_uuid", chatUUID, "count", len(res))
 	return c.JSON(http.StatusOK, res)
 }

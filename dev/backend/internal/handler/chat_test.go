@@ -41,6 +41,14 @@ func (m *MockChatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *MockChatUsecase) GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error) {
+	args := m.Called(ctx, chatUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.Message), args.Error(1)
+}
+
 func TestChatHandler_FirstStreamChat(t *testing.T) {
 	type mocks struct {
 		chatUsecase *MockChatUsecase
@@ -199,6 +207,83 @@ func TestChatHandler_GetChat(t *testing.T) {
 				assert.Equal(t, tt.wantStatus, rec.Code)
 				assert.JSONEq(t, tt.wantBody, rec.Body.String())
 			}
+		})
+	}
+}
+
+func TestChatHandler_GetMessages(t *testing.T) {
+	type mocks struct {
+		chatUsecase *MockChatUsecase
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		setupMock  func(m *mocks)
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "正常系: メッセージ一覧が取得できること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("GetMessages", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{
+						UUID:     "msg-1",
+						ChatUUID: "chat-uuid",
+						Role:     "user",
+						Content:  "hello",
+						Forks: []model.Fork{
+							{
+								ChatUUID:     "child-chat",
+								SelectedText: "hello",
+								RangeStart:   0,
+								RangeEnd:     5,
+							},
+						},
+					},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   `[{"uuid":"msg-1","role":"user","content":"hello","forks":[{"chat_uuid":"child-chat","selected_text":"hello","range_start":0,"range_end":5}]}]`,
+		},
+		{
+			name: "異常系: Usecaseがエラーを返した場合",
+			args: args{
+				chatUUID: "error-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("GetMessages", mock.Anything, "error-uuid").Return(nil, errors.New("db error"))
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"status":"error","message":"db error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/chats/"+tt.args.chatUUID+"/messages", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath("/api/chats/:chat_uuid/messages")
+			c.SetParamNames("chat_uuid")
+			c.SetParamValues(tt.args.chatUUID)
+
+			m := &mocks{
+				chatUsecase: &MockChatUsecase{},
+			}
+			tt.setupMock(m)
+
+			h := NewChatHandler(m.chatUsecase)
+			err := h.GetMessages(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
 		})
 	}
 }
