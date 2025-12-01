@@ -11,20 +11,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type ChatHandler interface {
-	// チャットの最初のメッセージを元に、GenAI にストリームを送信する
-	FirstStreamChat(c echo.Context) error
-	// チャットを取得する
-	GetChat(c echo.Context) error
-	// チャットのメッセージ一覧を取得する
-	GetMessages(c echo.Context) error
-}
-
 type chatHandler struct {
 	chatUsecase usecase.ChatUsecase
 }
 
-func NewChatHandler(chatUsecase usecase.ChatUsecase) ChatHandler {
+func NewChatHandler(chatUsecase usecase.ChatUsecase) *chatHandler {
 	return &chatHandler{
 		chatUsecase: chatUsecase,
 	}
@@ -164,5 +155,48 @@ func (h *chatHandler) GetMessages(c echo.Context) error {
 	}
 
 	slog.InfoContext(ctx, "メッセージ一覧の取得に成功", "chat_uuid", chatUUID, "count", len(res))
+	return c.JSON(http.StatusOK, res)
+}
+
+// メッセージを送信する
+func (h *chatHandler) SendMessage(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	var req model.SendMessageRequest
+	if err := c.Bind(&req); err != nil {
+		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "リクエストボディのバインドに失敗しました",
+		})
+	}
+
+	if req.Content == "" {
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "content が空です",
+		})
+	}
+
+	message, err := h.chatUsecase.SendMessage(ctx, chatUUID, req.Content)
+	if err != nil {
+		slog.ErrorContext(ctx, "SendMessage エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := model.MessageResponse{
+		UUID:           message.UUID,
+		Role:           message.Role,
+		Content:        message.Content,
+		SourceChatUUID: message.SourceChatUUID,
+		// Forks は新規作成時は空
+		Forks: []model.ForkResponse{},
+	}
+
+	slog.InfoContext(ctx, "メッセージ送信成功", "chat_uuid", chatUUID, "message_uuid", message.UUID)
 	return c.JSON(http.StatusOK, res)
 }

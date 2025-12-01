@@ -23,3 +23,7 @@ type ForkResponse struct {
 	RangeStart   int    `json:"range_start"`
 	RangeEnd     int    `json:"range_end"`
 }
+
+type SendMessageRequest struct {
+	Content string `json:"content"`
+}

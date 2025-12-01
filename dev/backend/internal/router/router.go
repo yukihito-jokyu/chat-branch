@@ -92,6 +92,7 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 		chat_router.Use(authMiddleware.Authenticate)
 		chat_router.GET("/:chat_uuid", chatHandler.GetChat)
 		chat_router.GET("/:chat_uuid/messages", chatHandler.GetMessages)
+		chat_router.POST("/:chat_uuid/message", chatHandler.SendMessage)
 		chat_router.GET("/:chat_uuid/stream", chatHandler.FirstStreamChat)
 	}
 }
