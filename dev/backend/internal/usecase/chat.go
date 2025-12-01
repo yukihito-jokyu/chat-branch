@@ -12,13 +12,6 @@ import (
 	"google.golang.org/genai"
 )
 
-type ChatUsecase interface {
-	// チャットの最初のメッセージを元に、GenAI にストリームを送信する
-	FirstStreamChat(ctx context.Context, chatUUID string, outputChan chan<- string) error
-	// チャットを取得する
-	GetChat(ctx context.Context, chatUUID string) (*model.Chat, error)
-}
-
 // GenAIClient は GenAI クライアントのインターフェース
 // モック化のために定義
 type GenAIClient interface {
@@ -44,7 +37,7 @@ type chatUsecase struct {
 	genaiClient GenAIClient
 }
 
-func NewChatUsecase(chatRepo repository.ChatRepository, messageRepo repository.MessageRepository, genaiClient GenAIClient) ChatUsecase {
+func NewChatUsecase(chatRepo repository.ChatRepository, messageRepo repository.MessageRepository, genaiClient GenAIClient) *chatUsecase {
 	return &chatUsecase{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
@@ -132,4 +125,15 @@ func (u *chatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.Chat
 		return nil, err
 	}
 	return chat, nil
+}
+
+// チャットのメッセージ一覧を取得する
+func (u *chatUsecase) GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error) {
+	slog.InfoContext(ctx, "メッセージ一覧取得処理開始", "chat_uuid", chatUUID)
+	messages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "メッセージ一覧取得失敗", "chat_uuid", chatUUID, "error", err)
+		return nil, err
+	}
+	return messages, nil
 }
