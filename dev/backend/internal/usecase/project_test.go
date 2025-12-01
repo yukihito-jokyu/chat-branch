@@ -38,6 +38,14 @@ func (m *mockChatRepository) Create(ctx context.Context, chat *model.Chat) error
 	return args.Error(0)
 }
 
+func (m *mockChatRepository) FindByID(ctx context.Context, uuid string) (*model.Chat, error) {
+	args := m.Called(ctx, uuid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Chat), args.Error(1)
+}
+
 type mockMessageRepository struct {
 	mock.Mock
 }
@@ -45,6 +53,14 @@ type mockMessageRepository struct {
 func (m *mockMessageRepository) Create(ctx context.Context, message *model.Message) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
+}
+
+func (m *mockMessageRepository) FindMessagesByChatID(ctx context.Context, chatUUID string) ([]*model.Message, error) {
+	args := m.Called(ctx, chatUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.Message), args.Error(1)
 }
 
 type mockTransactionManager struct {
@@ -132,18 +148,17 @@ func TestProjectUsecase_CreateProject(t *testing.T) {
 		{
 			name: "正常系: プロジェクト作成が成功すること",
 			args: args{
-				userUUID:       "user-1",
 				initialMessage: "Hello",
 			},
 			setupMock: func(mRepo *mockProjectRepository, mChat *mockChatRepository, mMsg *mockMessageRepository, mTx *mockTransactionManager) {
 				mRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *model.Project) bool {
-					return p.UserUUID == "user-1" && p.Title == "Hello"
+					return p.Title == "Hello"
 				})).Return(nil)
 				mChat.On("Create", mock.Anything, mock.MatchedBy(func(c *model.Chat) bool {
-					return c.UserUUID == "user-1" && c.Title == "Hello"
+					return c.Title == "Hello"
 				})).Return(nil)
 				mMsg.On("Create", mock.Anything, mock.MatchedBy(func(m *model.Message) bool {
-					return m.UserUUID == "user-1" && m.Content == "Hello" && m.Role == "user"
+					return m.Content == "Hello" && m.Role == "user"
 				})).Return(nil)
 			},
 			wantErr: false,

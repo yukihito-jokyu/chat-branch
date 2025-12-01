@@ -60,7 +60,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	if req.UserUUID == "" {
-		slog.WarnContext(c.Request().Context(), "ユーザーIDが指定されていません")
+		slog.WarnContext(c.Request().Context(), "ユーザーUUIDが指定されていません")
 		return c.JSON(http.StatusBadRequest, model.Response{
 			Status:  "error",
 			Message: "user_uuid is required",

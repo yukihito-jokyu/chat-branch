@@ -11,11 +11,12 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"google.golang.org/genai"
 	"gorm.io/gorm"
 )
 
 // アプリケーションのルーティングを初期化する処理
-func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
+func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *genai.Client) {
 	// ミドルウェア
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Recover())
@@ -60,6 +61,11 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 	projectUsecase := usecase.NewProjectUsecase(projectRepo, chatRepo, messageRepo, txManager)
 	projectHandler := handler.NewProjectHandler(projectUsecase)
 
+	// Chat の依存関係注入
+	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
+	chatUsecase := usecase.NewChatUsecase(chatRepo, messageRepo, genaiClientWrapper)
+	chatHandler := handler.NewChatHandler(chatUsecase)
+
 	// Middleware の初期化
 	authMiddleware := internalMiddleware.NewAuthMiddleware(cfg)
 
@@ -78,5 +84,12 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 		project_router.Use(authMiddleware.Authenticate)
 		project_router.GET("", projectHandler.GetProjects)
 		project_router.POST("", projectHandler.CreateProject)
+	}
+
+	// chat関連
+	{
+		chat_router := e.Group("/api/chats")
+		chat_router.Use(authMiddleware.Authenticate)
+		chat_router.GET("/:chat_uuid/stream", chatHandler.FirstStreamChat)
 	}
 }

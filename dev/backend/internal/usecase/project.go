@@ -64,7 +64,6 @@ func (u *projectUsecase) CreateProject(ctx context.Context, userUUID, initialMes
 	chat := &model.Chat{
 		UUID:        chatID,
 		ProjectUUID: projectID,
-		UserUUID:    userUUID,
 		Title:       initialMessage, // チャットのタイトルも最初のメッセージとする
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -73,7 +72,6 @@ func (u *projectUsecase) CreateProject(ctx context.Context, userUUID, initialMes
 	message := &model.Message{
 		UUID:      messageID,
 		ChatUUID:  chatID,
-		UserUUID:  userUUID,
 		Role:      "user",
 		Content:   initialMessage,
 		CreatedAt: now,
