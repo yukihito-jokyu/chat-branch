@@ -269,12 +269,32 @@ func (u *chatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.Chat
 // チャットのメッセージ一覧を取得する
 func (u *chatUsecase) GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error) {
 	slog.InfoContext(ctx, "メッセージ一覧取得処理開始", "chat_uuid", chatUUID)
-	messages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
+	allMessages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "メッセージ一覧取得失敗", "chat_uuid", chatUUID, "error", err)
 		return nil, err
 	}
-	return messages, nil
+
+	var mainMessages []*model.Message
+	reportsByParent := make(map[string][]*model.Message)
+
+	for _, msg := range allMessages {
+		if msg.Role == "merge_report" {
+			if msg.ParentMessageUUID != nil {
+				reportsByParent[*msg.ParentMessageUUID] = append(reportsByParent[*msg.ParentMessageUUID], msg)
+			}
+		} else {
+			mainMessages = append(mainMessages, msg)
+		}
+	}
+
+	for _, msg := range mainMessages {
+		if reports, ok := reportsByParent[msg.UUID]; ok {
+			msg.MergeReports = reports
+		}
+	}
+
+	return mainMessages, nil
 }
 
 // メッセージを送信する
@@ -622,5 +642,60 @@ func (u *chatUsecase) GetMergePreview(ctx context.Context, chatUUID string) (*mo
 
 	return &model.MergePreview{
 		SuggestedSummary: generatedText,
+	}, nil
+}
+
+// チャットをマージする
+func (u *chatUsecase) MergeChat(ctx context.Context, chatUUID string, params model.MergeChatParams) (*model.MergeChatResult, error) {
+	slog.InfoContext(ctx, "チャットマージ処理開始", "chat_uuid", chatUUID, "parent_chat_uuid", params.ParentChatUUID)
+
+	// 1. 子チャットの取得
+	childChat, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("子チャットの取得に失敗: %w", err)
+	}
+
+	if childChat.SourceMessageUUID == nil {
+		return nil, fmt.Errorf("子チャットにソースメッセージが設定されていません")
+	}
+
+	reportMessageID := uuid.New().String()
+
+	// 2. トランザクション処理
+	err = u.transactionManager.Do(ctx, func(ctx context.Context) error {
+		// 2-1. マージレポートメッセージの作成
+		// 親チャットに追加するので、ChatUUIDはParentChatUUIDになる
+		reportMessage := &model.Message{
+			UUID:              reportMessageID,
+			ChatUUID:          params.ParentChatUUID,
+			Role:              "merge_report",
+			Content:           params.SummaryContent,
+			ParentMessageUUID: childChat.SourceMessageUUID, // どのメッセージから派生したチャットがマージされたかを示す
+			SourceChatUUID:    &chatUUID,                   // どのチャットがマージされたか
+			CreatedAt:         time.Now(),
+		}
+
+		if err := u.messageRepo.Create(ctx, reportMessage); err != nil {
+			return fmt.Errorf("マージレポートメッセージの作成に失敗: %w", err)
+		}
+
+		// 2-2. 子チャットのステータス更新
+		if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "merged"); err != nil {
+			return fmt.Errorf("子チャットのステータス更新に失敗: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットマージ処理失敗", "error", err)
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "チャットマージ処理完了", "chat_uuid", chatUUID)
+
+	return &model.MergeChatResult{
+		ReportMessageID: reportMessageID,
+		SummaryContent:  params.SummaryContent,
 	}, nil
 }

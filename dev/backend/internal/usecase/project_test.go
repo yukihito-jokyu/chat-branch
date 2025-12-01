@@ -46,6 +46,11 @@ func (m *mockChatRepository) FindByID(ctx context.Context, uuid string) (*model.
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *mockChatRepository) UpdateStatus(ctx context.Context, chatUUID string, status string) error {
+	args := m.Called(ctx, chatUUID, status)
+	return args.Error(0)
+}
+
 type mockMessageRepository struct {
 	mock.Mock
 }
