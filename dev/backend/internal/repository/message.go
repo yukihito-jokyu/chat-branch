@@ -13,6 +13,7 @@ import (
 
 type messageORM struct {
 	UUID                 string    `gorm:"primaryKey;column:uuid;size:255"`
+	ParentMessageUUID    *string   `gorm:"column:parent_message_uuid;size:255"`
 	ChatUUID             string    `gorm:"column:chat_uuid;size:255"`
 	Role                 string    `gorm:"size:50"`
 	Content              string    `gorm:"type:longtext"`
@@ -130,6 +131,35 @@ func (r *messageRepository) FindLatestMessageWithSummary(ctx context.Context, ch
 	// context_summary が NULL でなく、空文字でもない最新のメッセージを取得
 	err := db.WithContext(ctx).
 		Where("chat_uuid = ? AND context_summary IS NOT NULL AND context_summary != ''", chatUUID).
+		Order("created_at desc").
+		First(&orm).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // 見つからない場合は nil を返す
+		}
+		return nil, err
+	}
+
+	return &model.Message{
+		UUID:           orm.UUID,
+		ChatUUID:       orm.ChatUUID,
+		Role:           orm.Role,
+		Content:        orm.Content,
+		ContextSummary: orm.ContextSummary,
+		SourceChatUUID: orm.SourceChatUUID,
+		CreatedAt:      orm.CreatedAt,
+	}, nil
+}
+
+// 指定されたチャットIDとロールを持つ最新のメッセージを取得する
+func (r *messageRepository) FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error) {
+	slog.DebugContext(ctx, "最新メッセージ取得処理を開始", "chat_uuid", chatUUID, "role", role)
+	var orm messageORM
+	db := getDB(ctx, r.db)
+
+	err := db.WithContext(ctx).
+		Where("chat_uuid = ? AND role = ?", chatUUID, role).
 		Order("created_at desc").
 		First(&orm).Error
 
