@@ -14,6 +14,7 @@ type Message struct {
 	ChatUUID       string
 	Role           string // user or assistant
 	Content        string
+	ContextSummary *string
 	SourceChatUUID *string
 	Forks          []Fork
 	CreatedAt      time.Time

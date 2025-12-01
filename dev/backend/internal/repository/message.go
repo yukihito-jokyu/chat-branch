@@ -113,3 +113,40 @@ func (r *messageRepository) FindMessagesByChatID(ctx context.Context, chatUUID s
 	}
 	return messages, nil
 }
+
+// メッセージのコンテキストサマリを更新する
+func (r *messageRepository) UpdateContextSummary(ctx context.Context, messageUUID string, summary string) error {
+	slog.DebugContext(ctx, "コンテキストサマリ更新処理を開始", "message_uuid", messageUUID)
+	db := getDB(ctx, r.db)
+	return db.WithContext(ctx).Model(&messageORM{}).Where("uuid = ?", messageUUID).Update("context_summary", summary).Error
+}
+
+// 指定されたチャットIDの中で、コンテキストサマリを持つ最新のメッセージを取得する
+func (r *messageRepository) FindLatestMessageWithSummary(ctx context.Context, chatUUID string) (*model.Message, error) {
+	slog.DebugContext(ctx, "最新サマリ付きメッセージ取得処理を開始", "chat_uuid", chatUUID)
+	var orm messageORM
+	db := getDB(ctx, r.db)
+
+	// context_summary が NULL でなく、空文字でもない最新のメッセージを取得
+	err := db.WithContext(ctx).
+		Where("chat_uuid = ? AND context_summary IS NOT NULL AND context_summary != ''", chatUUID).
+		Order("created_at desc").
+		First(&orm).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // 見つからない場合は nil を返す
+		}
+		return nil, err
+	}
+
+	return &model.Message{
+		UUID:           orm.UUID,
+		ChatUUID:       orm.ChatUUID,
+		Role:           orm.Role,
+		Content:        orm.Content,
+		ContextSummary: orm.ContextSummary,
+		SourceChatUUID: orm.SourceChatUUID,
+		CreatedAt:      orm.CreatedAt,
+	}, nil
+}
