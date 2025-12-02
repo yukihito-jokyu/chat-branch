@@ -76,7 +76,9 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 	// auth関連
 	{
 		auth_router := e.Group("/api/auth")
+		// ゲストでサインアップする機能
 		auth_router.POST("/signup", authHandler.Signup)
+		// ゲストでログインする機能
 		auth_router.POST("/login", authHandler.Login)
 	}
 
@@ -84,7 +86,9 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 	{
 		project_router := e.Group("/api/projects")
 		project_router.Use(authMiddleware.Authenticate)
+		// ユーザーが過去に作成したプロジェクト一覧を取得する
 		project_router.GET("", projectHandler.GetProjects)
+		// 新しいプロジェクトを作成する
 		project_router.POST("", projectHandler.CreateProject)
 	}
 
@@ -92,15 +96,27 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 	{
 		chat_router := e.Group("/api/chats")
 		chat_router.Use(authMiddleware.Authenticate)
+		// 特定のチャットの基本情報を取得する機能
 		chat_router.GET("/:chat_uuid", chatHandler.GetChat)
+		// 特定のチャット内の会話履歴を取得する機能
 		chat_router.GET("/:chat_uuid/messages", chatHandler.GetMessages)
+		// 特定のチャットにメッセージを送信する機能
 		chat_router.POST("/:chat_uuid/message", chatHandler.SendMessage)
+		// 特定のチャットにLLMによる文章を生成する機能(POST /api/chats/:chat_uuid/message の後に必ず呼び出す)
 		chat_router.GET("/:chat_uuid/messages/stream", chatHandler.StreamMessage)
+		// 特定のチャットにLLMによる文章を生成する機能(初めてのチャット POST /api/projects の後に必ず呼び出す)
 		chat_router.GET("/:chat_uuid/stream", chatHandler.FirstStreamChat)
+		// 子チャット開始モーダルで、ユーザーが親チャットの要約を選択した場合、APIが実行され、ユーザーに確認させるためのプレビューを取得する機能
 		chat_router.POST("/:chat_uuid/fork/preview", chatHandler.GenerateForkPreview)
+		// 子チャットを生成する機能
 		chat_router.POST("/:chat_uuid/fork", chatHandler.ForkChat)
+		// 親にマージボタンを押した際、AIに子チャットの議論の流れと結論を要約を作らせる機能
 		chat_router.POST("/:chat_uuid/merge/preview", chatHandler.GetMergePreview)
+		// 子チャットを親チャットにマージする機能
 		chat_router.POST("/:chat_uuid/merge", chatHandler.MergeChat)
+		// チャットを閉じる機能
 		chat_router.POST("/:chat_uuid/close", chatHandler.CloseChat)
+		// チャットを開く機能
+		chat_router.POST("/:chat_uuid/open", chatHandler.OpenChat)
 	}
 }
