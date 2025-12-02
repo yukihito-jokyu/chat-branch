@@ -23,3 +23,7 @@ type MessageInfo struct {
 	MessageUUID string `json:"message_uuid"`
 	Message     string `json:"message"`
 }
+
+type GetParentChatResponse struct {
+	ChatUUID string `json:"chat_uuid"`
+}

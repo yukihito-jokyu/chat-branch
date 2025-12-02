@@ -38,6 +38,14 @@ func (m *mockProjectUsecase) CreateProject(ctx context.Context, userUUID, initia
 	return args.Get(0).(*model.Project), args.Get(1).(*model.Chat), args.Get(2).(*model.Message), args.Error(3)
 }
 
+func (m *mockProjectUsecase) GetParentChat(ctx context.Context, projectUUID string) (*model.Chat, error) {
+	args := m.Called(ctx, projectUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Chat), args.Error(1)
+}
+
 func TestProjectHandler_GetProjects(t *testing.T) {
 	type args struct {
 		userUUID interface{} // コンテキストにセットする値
@@ -227,6 +235,82 @@ func TestProjectHandler_CreateProject(t *testing.T) {
 
 			h := NewProjectHandler(mockUsecase)
 			err := h.CreateProject(c)
+
+			if err != nil {
+				// エラーハンドリング
+			}
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Contains(t, rec.Body.String(), tt.wantBodySubstr)
+
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestProjectHandler_GetParentChat(t *testing.T) {
+	type args struct {
+		projectUUID string
+	}
+	tests := []struct {
+		name           string
+		args           args
+		setupMock      func(m *mockProjectUsecase)
+		wantStatus     int
+		wantBodySubstr string
+	}{
+		{
+			name: "正常系: 親チャットが取得できること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				chat := &model.Chat{UUID: "chat-uuid"}
+				m.On("GetParentChat", mock.Anything, "project-uuid").Return(chat, nil)
+			},
+			wantStatus:     http.StatusOK,
+			wantBodySubstr: "chat-uuid",
+		},
+		{
+			name: "異常系: project_uuidが空の場合400エラー",
+			args: args{
+				projectUUID: "",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				// 呼び出されない
+			},
+			wantStatus:     http.StatusBadRequest,
+			wantBodySubstr: "project_uuidは必須です",
+		},
+		{
+			name: "異常系: Usecaseでエラーが発生した場合500エラー",
+			args: args{
+				projectUUID: "project-error",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				m.On("GetParentChat", mock.Anything, "project-error").Return(nil, errors.New("usecase error"))
+			},
+			wantStatus:     http.StatusInternalServerError,
+			wantBodySubstr: "usecase error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Echoのセットアップ
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/projects/"+tt.args.projectUUID, nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("project_uuid")
+			c.SetParamValues(tt.args.projectUUID)
+
+			// モックのセットアップ
+			mockUsecase := new(mockProjectUsecase)
+			tt.setupMock(mockUsecase)
+
+			h := NewProjectHandler(mockUsecase)
+			err := h.GetParentChat(c)
 
 			if err != nil {
 				// エラーハンドリング
