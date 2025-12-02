@@ -12,4 +12,6 @@ type ChatRepository interface {
 	FindByID(ctx context.Context, uuid string) (*model.Chat, error)
 	// チャットのステータスを更新する処理
 	UpdateStatus(ctx context.Context, chatUUID string, status string) error
+	// プロジェクト内で最も古いチャットを取得する処理
+	FindOldestByProjectUUID(ctx context.Context, projectUUID string) (*model.Chat, error)
 }
