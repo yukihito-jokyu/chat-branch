@@ -51,6 +51,14 @@ func (m *mockChatRepository) UpdateStatus(ctx context.Context, chatUUID string, 
 	return args.Error(0)
 }
 
+func (m *mockChatRepository) FindOldestByProjectUUID(ctx context.Context, projectUUID string) (*model.Chat, error) {
+	args := m.Called(ctx, projectUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Chat), args.Error(1)
+}
+
 type mockMessageRepository struct {
 	mock.Mock
 }
@@ -248,6 +256,69 @@ func TestProjectUsecase_CreateProject(t *testing.T) {
 				assert.NotNil(t, m)
 				assert.Equal(t, tt.args.userUUID, p.UserUUID)
 				assert.Equal(t, tt.args.initialMessage, p.Title)
+			}
+		})
+	}
+}
+
+func TestProjectUsecase_GetParentChat(t *testing.T) {
+	type args struct {
+		projectUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(mRepo *mockProjectRepository, mChat *mockChatRepository, mMsg *mockMessageRepository, mTx *mockTransactionManager)
+		want      *model.Chat
+		wantErr   bool
+	}{
+		{
+			name: "正常系: 親チャットが取得できること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupMock: func(mRepo *mockProjectRepository, mChat *mockChatRepository, mMsg *mockMessageRepository, mTx *mockTransactionManager) {
+				mChat.On("FindOldestByProjectUUID", mock.Anything, "project-uuid").Return(&model.Chat{
+					UUID:        "chat-uuid",
+					ProjectUUID: "project-uuid",
+				}, nil)
+			},
+			want: &model.Chat{
+				UUID:        "chat-uuid",
+				ProjectUUID: "project-uuid",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: リポジトリでエラーが発生した場合エラーになること",
+			args: args{
+				projectUUID: "project-error",
+			},
+			setupMock: func(mRepo *mockProjectRepository, mChat *mockChatRepository, mMsg *mockMessageRepository, mTx *mockTransactionManager) {
+				mChat.On("FindOldestByProjectUUID", mock.Anything, "project-error").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockProjectRepository)
+			mockChatRepo := new(mockChatRepository)
+			mockMessageRepo := new(mockMessageRepository)
+			mockTxManager := new(mockTransactionManager)
+			tt.setupMock(mockRepo, mockChatRepo, mockMessageRepo, mockTxManager)
+
+			u := NewProjectUsecase(mockRepo, mockChatRepo, mockMessageRepo, mockTxManager)
+			got, err := u.GetParentChat(context.Background(), tt.args.projectUUID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("projectUsecase.GetParentChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
 			}
 		})
 	}

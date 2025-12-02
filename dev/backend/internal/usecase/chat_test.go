@@ -49,6 +49,14 @@ func (m *MockChatRepository) UpdateStatus(ctx context.Context, chatUUID string, 
 	return args.Error(0)
 }
 
+func (m *MockChatRepository) FindOldestByProjectUUID(ctx context.Context, projectUUID string) (*model.Chat, error) {
+	args := m.Called(ctx, projectUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Chat), args.Error(1)
+}
+
 type MockMessageRepository struct {
 	mock.Mock
 }

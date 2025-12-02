@@ -10,4 +10,6 @@ type ProjectUsecase interface {
 	GetProjects(ctx context.Context, userUUID string) ([]*model.Project, error)
 	// プロジェクト作成処理
 	CreateProject(ctx context.Context, userUUID, initialMessage string) (*model.Project, *model.Chat, *model.Message, error)
+	// プロジェクトの親チャット取得処理
+	GetParentChat(ctx context.Context, projectUUID string) (*model.Chat, error)
 }

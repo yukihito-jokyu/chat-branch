@@ -98,3 +98,14 @@ func (u *projectUsecase) CreateProject(ctx context.Context, userUUID, initialMes
 	slog.InfoContext(ctx, "プロジェクト作成処理を完了", "project_id", projectID)
 	return project, chat, message, nil
 }
+
+// プロジェクトの親チャット取得処理
+func (u *projectUsecase) GetParentChat(ctx context.Context, projectUUID string) (*model.Chat, error) {
+	slog.InfoContext(ctx, "プロジェクトの親チャット取得処理を開始", "project_uuid", projectUUID)
+	chat, err := u.chatRepo.FindOldestByProjectUUID(ctx, projectUUID)
+	if err != nil {
+		return nil, fmt.Errorf("プロジェクトの親チャット取得に失敗: %w", err)
+	}
+	slog.InfoContext(ctx, "プロジェクトの親チャット取得処理を完了", "project_uuid", projectUUID)
+	return chat, nil
+}
