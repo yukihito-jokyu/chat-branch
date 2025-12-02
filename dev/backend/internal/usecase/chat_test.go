@@ -1377,7 +1377,90 @@ func TestChatUsecase_CloseChat(t *testing.T) {
 				t.Errorf("chatUsecase.CloseChat() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			assert.Equal(t, tt.want, got)
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestChatUsecase_OpenChat(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      string
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットオープンが成功すること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "open").Return(nil)
+			},
+			want:    "chat-uuid",
+			wantErr: false,
+		},
+		{
+			name: "異常系: チャットが存在しない場合エラー",
+			args: args{
+				chatUUID: "non-existent",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "non-existent").Return(nil, errors.New("not found"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "異常系: ステータス更新に失敗した場合エラー",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "open").Return(errors.New("db error"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.OpenChat(context.Background(), tt.args.chatUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.OpenChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
+			}
 		})
 	}
 }

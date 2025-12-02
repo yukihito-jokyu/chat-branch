@@ -28,6 +28,8 @@ type ChatUsecase interface {
 	MergeChat(ctx context.Context, chatUUID string, params model.MergeChatParams) (*model.MergeChatResult, error)
 	// チャットをクローズする
 	CloseChat(ctx context.Context, chatUUID string) (string, error)
+	// チャットをオープンする
+	OpenChat(ctx context.Context, chatUUID string) (string, error)
 }
 
 // GenAIClient は GenAI クライアントのインターフェース

@@ -720,3 +720,24 @@ func (u *chatUsecase) CloseChat(ctx context.Context, chatUUID string) (string, e
 	slog.InfoContext(ctx, "チャットクローズ処理完了", "chat_uuid", chatUUID)
 	return chatUUID, nil
 }
+
+// チャットをオープンする
+func (u *chatUsecase) OpenChat(ctx context.Context, chatUUID string) (string, error) {
+	slog.InfoContext(ctx, "チャットオープン処理開始", "chat_uuid", chatUUID)
+
+	// 1. チャットの存在確認
+	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	// 2. ステータスを open に更新
+	if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "open"); err != nil {
+		slog.ErrorContext(ctx, "チャットステータス更新失敗", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットオープン処理完了", "chat_uuid", chatUUID)
+	return chatUUID, nil
+}
