@@ -66,3 +66,7 @@ type MergeChatResponse struct {
 type CloseChatResponse struct {
 	ChatUUID string `json:"chat_uuid"`
 }
+
+type OpenChatResponse struct {
+	ChatUUID string `json:"chat_uuid"`
+}

@@ -898,3 +898,70 @@ func TestChatHandler_CloseChat(t *testing.T) {
 		})
 	}
 }
+
+func (m *MockChatUsecase) OpenChat(ctx context.Context, chatUUID string) (string, error) {
+	args := m.Called(ctx, chatUUID)
+	return args.String(0), args.Error(1)
+}
+
+func TestChatHandler_OpenChat(t *testing.T) {
+	type mocks struct {
+		chatUsecase *MockChatUsecase
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		setupMock  func(m *mocks)
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "正常系: チャットオープンが成功すること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("OpenChat", mock.Anything, "chat-uuid").Return("chat-uuid", nil)
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"chat_uuid":"chat-uuid"}`,
+		},
+		{
+			name: "異常系: Usecaseがエラーを返した場合",
+			args: args{
+				chatUUID: "error-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatUsecase.On("OpenChat", mock.Anything, "error-uuid").Return("", errors.New("usecase error"))
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"status":"error","message":"usecase error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPost, "/api/chats/"+tt.args.chatUUID+"/open", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath("/api/chats/:chat_uuid/open")
+			c.SetParamNames("chat_uuid")
+			c.SetParamValues(tt.args.chatUUID)
+
+			m := &mocks{
+				chatUsecase: &MockChatUsecase{},
+			}
+			tt.setupMock(m)
+
+			h := NewChatHandler(m.chatUsecase)
+			err := h.OpenChat(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
+}
