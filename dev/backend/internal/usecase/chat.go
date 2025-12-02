@@ -699,3 +699,24 @@ func (u *chatUsecase) MergeChat(ctx context.Context, chatUUID string, params mod
 		SummaryContent:  params.SummaryContent,
 	}, nil
 }
+
+// チャットをクローズする
+func (u *chatUsecase) CloseChat(ctx context.Context, chatUUID string) (string, error) {
+	slog.InfoContext(ctx, "チャットクローズ処理開始", "chat_uuid", chatUUID)
+
+	// 1. チャットの存在確認
+	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	// 2. ステータスを closed に更新
+	if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "closed"); err != nil {
+		slog.ErrorContext(ctx, "チャットステータス更新失敗", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットクローズ処理完了", "chat_uuid", chatUUID)
+	return chatUUID, nil
+}

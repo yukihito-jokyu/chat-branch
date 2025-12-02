@@ -62,3 +62,7 @@ type MergeChatResponse struct {
 	ReportMessageID string `json:"report_message_id"`
 	SummaryContent  string `json:"summary_content"`
 }
+
+type CloseChatResponse struct {
+	ChatUUID string `json:"chat_uuid"`
+}

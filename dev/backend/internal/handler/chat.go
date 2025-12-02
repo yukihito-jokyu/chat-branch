@@ -388,6 +388,29 @@ func (h *chatHandler) MergeChat(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+// チャットをクローズする
+func (h *chatHandler) CloseChat(c echo.Context) error {
+	chatUUID := c.Param("chat_uuid")
+	ctx := c.Request().Context()
+
+	slog.InfoContext(ctx, "CloseChat リクエスト受信", "chat_uuid", chatUUID)
+
+	uuid, err := h.chatUsecase.CloseChat(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "CloseChat エラー", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := handlerModel.CloseChatResponse{
+		ChatUUID: uuid,
+	}
+
+	return c.JSON(http.StatusOK, res)
+}
+
 func mapMessageToResponse(m *domainModel.Message) model.MessageResponse {
 	forks := make([]model.ForkResponse, len(m.Forks))
 	for j, f := range m.Forks {
