@@ -104,3 +104,32 @@ func (h *projectHandler) CreateProject(c echo.Context) error {
 	slog.InfoContext(ctx, "プロジェクト作成に成功", "project_id", project.UUID)
 	return c.JSON(http.StatusCreated, res)
 }
+
+// プロジェクトの親チャット取得処理
+func (h *projectHandler) GetParentChat(c echo.Context) error {
+	ctx := c.Request().Context()
+	projectUUID := c.Param("project_uuid")
+	if projectUUID == "" {
+		slog.WarnContext(ctx, "project_uuidが指定されていません")
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "project_uuidは必須です",
+		})
+	}
+
+	chat, err := h.projectUsecase.GetParentChat(ctx, projectUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "親チャットの取得に失敗", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	res := model.GetParentChatResponse{
+		ChatUUID: chat.UUID,
+	}
+
+	slog.InfoContext(ctx, "親チャットの取得に成功", "project_uuid", projectUUID, "chat_uuid", chat.UUID)
+	return c.JSON(http.StatusOK, res)
+}

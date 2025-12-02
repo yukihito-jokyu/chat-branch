@@ -90,6 +90,8 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 		project_router.GET("", projectHandler.GetProjects)
 		// 新しいプロジェクトを作成する
 		project_router.POST("", projectHandler.CreateProject)
+		// プロジェクトの親チャットのUUIDを取得する
+		project_router.GET("/:project_uuid", projectHandler.GetParentChat)
 	}
 
 	// chat関連

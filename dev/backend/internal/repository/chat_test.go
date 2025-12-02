@@ -242,3 +242,112 @@ func TestChatRepository_UpdateStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestChatRepository_FindOldestByProjectUUID(t *testing.T) {
+	type args struct {
+		projectUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupData func(db *gorm.DB)
+		want      *model.Chat
+		wantErr   bool
+	}{
+		{
+			name: "正常系: 最も古いチャットが取得できること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&chatORM{
+					UUID:        "chat-old",
+					ProjectUUID: "project-uuid",
+					Title:       "old chat",
+					CreatedAt:   time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				})
+				db.Create(&chatORM{
+					UUID:        "chat-new",
+					ProjectUUID: "project-uuid",
+					Title:       "new chat",
+					CreatedAt:   time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC),
+				})
+			},
+			want: &model.Chat{
+				UUID:        "chat-old",
+				ProjectUUID: "project-uuid",
+				Title:       "old chat",
+				CreatedAt:   time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: ContextSummaryが存在する場合、正しくマッピングされること",
+			args: args{
+				projectUUID: "project-uuid-summary",
+			},
+			setupData: func(db *gorm.DB) {
+				summary := "test summary"
+				db.Create(&chatORM{
+					UUID:           "chat-summary",
+					ProjectUUID:    "project-uuid-summary",
+					Title:          "summary chat",
+					ContextSummary: &summary,
+					CreatedAt:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+					UpdatedAt:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				})
+			},
+			want: &model.Chat{
+				UUID:           "chat-summary",
+				ProjectUUID:    "project-uuid-summary",
+				Title:          "summary chat",
+				ContextSummary: "test summary",
+				CreatedAt:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				UpdatedAt:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: チャットが存在しない場合エラーになること",
+			args: args{
+				projectUUID: "non-existent-project",
+			},
+			setupData: func(db *gorm.DB) {},
+			want:      nil,
+			wantErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// インメモリDBのセットアップ
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("failed to connect database: %v", err)
+			}
+			// マイグレーション
+			if err := db.AutoMigrate(&chatORM{}); err != nil {
+				t.Fatalf("failed to migrate database: %v", err)
+			}
+
+			// データ投入
+			if tt.setupData != nil {
+				tt.setupData(db)
+			}
+
+			r := NewChatRepository(db)
+			got, err := r.FindOldestByProjectUUID(context.Background(), tt.args.projectUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatRepository.FindOldestByProjectUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if got.UUID != tt.want.UUID || got.ProjectUUID != tt.want.ProjectUUID || got.Title != tt.want.Title {
+					t.Errorf("chatRepository.FindOldestByProjectUUID() = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}

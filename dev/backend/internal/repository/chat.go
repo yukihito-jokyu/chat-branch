@@ -100,3 +100,31 @@ func (r *chatRepository) UpdateStatus(ctx context.Context, chatUUID string, stat
 	db := getDB(ctx, r.db)
 	return db.WithContext(ctx).Model(&chatORM{}).Where("uuid = ?", chatUUID).Update("status", status).Error
 }
+
+// プロジェクト内で最も古いチャットを取得する処理
+func (r *chatRepository) FindOldestByProjectUUID(ctx context.Context, projectUUID string) (*model.Chat, error) {
+	slog.DebugContext(ctx, "プロジェクト内最古チャット取得処理を開始", "project_uuid", projectUUID)
+	var orm chatORM
+	db := getDB(ctx, r.db)
+	if err := db.WithContext(ctx).Where("project_uuid = ?", projectUUID).Order("created_at ASC").First(&orm).Error; err != nil {
+		return nil, err
+	}
+
+	var contextSummary string
+	if orm.ContextSummary != nil {
+		contextSummary = *orm.ContextSummary
+	}
+
+	return &model.Chat{
+		UUID:                 orm.UUID,
+		ProjectUUID:          orm.ProjectUUID,
+		ParentUUID:           orm.ParentChatUUID,
+		SourceMessageUUID:    orm.SourceMessageUUID,
+		MessageSelectionUUID: orm.MessageSelectionUUID,
+		Title:                orm.Title,
+		Status:               orm.Status,
+		ContextSummary:       contextSummary,
+		CreatedAt:            orm.CreatedAt,
+		UpdatedAt:            orm.UpdatedAt,
+	}, nil
+}
