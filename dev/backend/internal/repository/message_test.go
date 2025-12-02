@@ -447,3 +447,123 @@ func TestMessageRepository_FindLatestMessageWithSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageRepository_FindLatestMessageByRole(t *testing.T) {
+	type args struct {
+		chatUUID string
+		role     string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupData func(db *gorm.DB)
+		want      *model.Message
+		wantErr   bool
+	}{
+		{
+			name: "正常系: 指定されたロールの最新メッセージが取得できること",
+			args: args{
+				chatUUID: "chat-uuid",
+				role:     "assistant",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&messageORM{
+					UUID:      "msg-1",
+					ChatUUID:  "chat-uuid",
+					Role:      "assistant",
+					Content:   "content 1",
+					CreatedAt: time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
+				})
+				db.Create(&messageORM{
+					UUID:      "msg-2",
+					ChatUUID:  "chat-uuid",
+					Role:      "user",
+					Content:   "content 2",
+					CreatedAt: time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC),
+				})
+				db.Create(&messageORM{
+					UUID:      "msg-3",
+					ChatUUID:  "chat-uuid",
+					Role:      "assistant",
+					Content:   "content 3",
+					CreatedAt: time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
+				})
+			},
+			want: &model.Message{
+				UUID:     "msg-3",
+				ChatUUID: "chat-uuid",
+				Role:     "assistant",
+				Content:  "content 3",
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: 指定されたロールのメッセージが存在しない場合はnilが返ること",
+			args: args{
+				chatUUID: "chat-uuid",
+				role:     "assistant",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&messageORM{
+					UUID:      "msg-1",
+					ChatUUID:  "chat-uuid",
+					Role:      "user",
+					Content:   "content 1",
+					CreatedAt: time.Now(),
+				})
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "異常系: DBエラーが発生した場合エラーになること",
+			args: args{
+				chatUUID: "chat-uuid",
+				role:     "assistant",
+			},
+			setupData: func(db *gorm.DB) {
+				sqlDB, _ := db.DB()
+				sqlDB.Close()
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// インメモリDBのセットアップ
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("failed to connect database: %v", err)
+			}
+			// マイグレーション
+			if err := db.AutoMigrate(&messageORM{}); err != nil {
+				t.Fatalf("failed to migrate database: %v", err)
+			}
+
+			if tt.setupData != nil {
+				tt.setupData(db)
+			}
+
+			r := NewMessageRepository(db)
+			got, err := r.FindLatestMessageByRole(context.Background(), tt.args.chatUUID, tt.args.role)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("messageRepository.FindLatestMessageByRole() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("messageRepository.FindLatestMessageByRole() got = %v, want nil", got)
+				}
+			} else {
+				if got == nil {
+					t.Errorf("messageRepository.FindLatestMessageByRole() got nil, want %v", tt.want)
+				} else {
+					if got.UUID != tt.want.UUID {
+						t.Errorf("messageRepository.FindLatestMessageByRole() UUID = %v, want %v", got.UUID, tt.want.UUID)
+					}
+				}
+			}
+		})
+	}
+}

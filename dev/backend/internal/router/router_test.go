@@ -79,6 +79,36 @@ func TestInitRoutes(t *testing.T) {
 			path:   "/api/chats/:chat_uuid/stream",
 			name:   "FirstStreamChat",
 		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/fork/preview",
+			name:   "GenerateForkPreview",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/fork",
+			name:   "ForkChat",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/merge/preview",
+			name:   "GetMergePreview",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/merge",
+			name:   "MergeChat",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/close",
+			name:   "CloseChat",
+		},
+		{
+			method: "POST",
+			path:   "/api/chats/:chat_uuid/open",
+			name:   "OpenChat",
+		},
 	}
 
 	// 登録されたルートを取得

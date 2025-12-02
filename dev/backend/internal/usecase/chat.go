@@ -269,12 +269,32 @@ func (u *chatUsecase) GetChat(ctx context.Context, chatUUID string) (*model.Chat
 // チャットのメッセージ一覧を取得する
 func (u *chatUsecase) GetMessages(ctx context.Context, chatUUID string) ([]*model.Message, error) {
 	slog.InfoContext(ctx, "メッセージ一覧取得処理開始", "chat_uuid", chatUUID)
-	messages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
+	allMessages, err := u.messageRepo.FindMessagesByChatID(ctx, chatUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "メッセージ一覧取得失敗", "chat_uuid", chatUUID, "error", err)
 		return nil, err
 	}
-	return messages, nil
+
+	var mainMessages []*model.Message
+	reportsByParent := make(map[string][]*model.Message)
+
+	for _, msg := range allMessages {
+		if msg.Role == "merge_report" {
+			if msg.ParentMessageUUID != nil {
+				reportsByParent[*msg.ParentMessageUUID] = append(reportsByParent[*msg.ParentMessageUUID], msg)
+			}
+		} else {
+			mainMessages = append(mainMessages, msg)
+		}
+	}
+
+	for _, msg := range mainMessages {
+		if reports, ok := reportsByParent[msg.UUID]; ok {
+			msg.MergeReports = reports
+		}
+	}
+
+	return mainMessages, nil
 }
 
 // メッセージを送信する
@@ -531,4 +551,193 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 	slog.InfoContext(ctx, "チャットフォーク処理完了", "new_chat_uuid", newChatUUID)
 
 	return newChatUUID, nil
+}
+
+// マージプレビューを生成する
+func (u *chatUsecase) GetMergePreview(ctx context.Context, chatUUID string) (*model.MergePreview, error) {
+	slog.InfoContext(ctx, "マージプレビュー生成開始", "chat_uuid", chatUUID)
+
+	// 1. チャット情報の取得 (親からforkした理由 = ContextSummary を取得)
+	chat, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("チャット取得失敗: %w", err)
+	}
+
+	// 2. 子チャットの最新のサマリを取得
+	latestSummaryMessage, err := u.messageRepo.FindLatestMessageWithSummary(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("最新サマリ取得失敗: %w", err)
+	}
+
+	// 3. role='assistant' の最新メッセージを取得
+	latestAssistantMessage, err := u.messageRepo.FindLatestMessageByRole(ctx, chatUUID, "assistant")
+	if err != nil {
+		return nil, fmt.Errorf("最新アシスタントメッセージ取得失敗: %w", err)
+	}
+
+	// 4. プロンプト構築
+	var parts []*genai.Content
+
+	prompt := "以下の情報を元に、子チャットでの議論の流れと結論を要約してください。\n\n"
+
+	prompt += "## 親チャットからForkした理由 (文脈)\n"
+	if chat.ContextSummary != "" {
+		prompt += chat.ContextSummary + "\n\n"
+	} else {
+		prompt += "なし\n\n"
+	}
+
+	prompt += "## 子チャットの最新のサマリ (途中経過)\n"
+	if latestSummaryMessage != nil && latestSummaryMessage.ContextSummary != nil {
+		prompt += *latestSummaryMessage.ContextSummary + "\n\n"
+	} else {
+		prompt += "なし\n\n"
+	}
+
+	prompt += "## 最新のAI回答 (直近の結論)\n"
+	if latestAssistantMessage != nil {
+		prompt += latestAssistantMessage.Content + "\n\n"
+	} else {
+		prompt += "なし\n\n"
+	}
+
+	prompt += `
+出力フォーマット:
+## 議論の流れ
+(ここに議論の流れを記述)
+
+## 結論
+(ここに結論を記述)
+`
+
+	parts = append(parts, &genai.Content{
+		Role: "user",
+		Parts: []*genai.Part{
+			{Text: prompt},
+		},
+	})
+
+	// 5. GenAI 呼び出し
+	client := u.genaiClient
+	modelName := "gemini-2.5-flash"
+
+	config := &genai.GenerateContentConfig{
+		ResponseMIMEType: "text/plain",
+	}
+
+	resp, err := client.GenerateContent(ctx, modelName, parts, config)
+	if err != nil {
+		return nil, fmt.Errorf("GenAI呼び出しに失敗: %w", err)
+	}
+
+	// 6. レスポンス解析
+	var generatedText string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				generatedText += part.Text
+			}
+		}
+	}
+
+	return &model.MergePreview{
+		SuggestedSummary: generatedText,
+	}, nil
+}
+
+// チャットをマージする
+func (u *chatUsecase) MergeChat(ctx context.Context, chatUUID string, params model.MergeChatParams) (*model.MergeChatResult, error) {
+	slog.InfoContext(ctx, "チャットマージ処理開始", "chat_uuid", chatUUID, "parent_chat_uuid", params.ParentChatUUID)
+
+	// 1. 子チャットの取得
+	childChat, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("子チャットの取得に失敗: %w", err)
+	}
+
+	if childChat.SourceMessageUUID == nil {
+		return nil, fmt.Errorf("子チャットにソースメッセージが設定されていません")
+	}
+
+	reportMessageID := uuid.New().String()
+
+	// 2. トランザクション処理
+	err = u.transactionManager.Do(ctx, func(ctx context.Context) error {
+		// 2-1. マージレポートメッセージの作成
+		// 親チャットに追加するので、ChatUUIDはParentChatUUIDになる
+		reportMessage := &model.Message{
+			UUID:              reportMessageID,
+			ChatUUID:          params.ParentChatUUID,
+			Role:              "merge_report",
+			Content:           params.SummaryContent,
+			ParentMessageUUID: childChat.SourceMessageUUID, // どのメッセージから派生したチャットがマージされたかを示す
+			SourceChatUUID:    &chatUUID,                   // どのチャットがマージされたか
+			CreatedAt:         time.Now(),
+		}
+
+		if err := u.messageRepo.Create(ctx, reportMessage); err != nil {
+			return fmt.Errorf("マージレポートメッセージの作成に失敗: %w", err)
+		}
+
+		// 2-2. 子チャットのステータス更新
+		if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "merged"); err != nil {
+			return fmt.Errorf("子チャットのステータス更新に失敗: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットマージ処理失敗", "error", err)
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "チャットマージ処理完了", "chat_uuid", chatUUID)
+
+	return &model.MergeChatResult{
+		ReportMessageID: reportMessageID,
+		SummaryContent:  params.SummaryContent,
+	}, nil
+}
+
+// チャットをクローズする
+func (u *chatUsecase) CloseChat(ctx context.Context, chatUUID string) (string, error) {
+	slog.InfoContext(ctx, "チャットクローズ処理開始", "chat_uuid", chatUUID)
+
+	// 1. チャットの存在確認
+	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	// 2. ステータスを closed に更新
+	if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "closed"); err != nil {
+		slog.ErrorContext(ctx, "チャットステータス更新失敗", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットクローズ処理完了", "chat_uuid", chatUUID)
+	return chatUUID, nil
+}
+
+// チャットをオープンする
+func (u *chatUsecase) OpenChat(ctx context.Context, chatUUID string) (string, error) {
+	slog.InfoContext(ctx, "チャットオープン処理開始", "chat_uuid", chatUUID)
+
+	// 1. チャットの存在確認
+	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	// 2. ステータスを open に更新
+	if err := u.chatRepo.UpdateStatus(ctx, chatUUID, "open"); err != nil {
+		slog.ErrorContext(ctx, "チャットステータス更新失敗", "chat_uuid", chatUUID, "error", err)
+		return "", err
+	}
+
+	slog.InfoContext(ctx, "チャットオープン処理完了", "chat_uuid", chatUUID)
+	return chatUUID, nil
 }

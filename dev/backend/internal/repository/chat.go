@@ -93,3 +93,10 @@ func (r *chatRepository) FindByID(ctx context.Context, uuid string) (*model.Chat
 		UpdatedAt:            orm.UpdatedAt,
 	}, nil
 }
+
+// チャットのステータスを更新する
+func (r *chatRepository) UpdateStatus(ctx context.Context, chatUUID string, status string) error {
+	slog.DebugContext(ctx, "チャットステータス更新処理を開始", "chat_uuid", chatUUID, "status", status)
+	db := getDB(ctx, r.db)
+	return db.WithContext(ctx).Model(&chatORM{}).Where("uuid = ?", chatUUID).Update("status", status).Error
+}

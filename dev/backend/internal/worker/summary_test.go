@@ -62,6 +62,14 @@ func (m *MockMessageRepository) FindLatestMessageWithSummary(ctx context.Context
 	return args.Get(0).(*model.Message), args.Error(1)
 }
 
+func (m *MockMessageRepository) FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error) {
+	args := m.Called(ctx, chatUUID, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
 type MockGenAIClient struct {
 	mock.Mock
 }

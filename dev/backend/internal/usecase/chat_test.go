@@ -44,6 +44,11 @@ func (m *MockChatRepository) FindByID(ctx context.Context, uuid string) (*model.
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *MockChatRepository) UpdateStatus(ctx context.Context, chatUUID string, status string) error {
+	args := m.Called(ctx, chatUUID, status)
+	return args.Error(0)
+}
+
 type MockMessageRepository struct {
 	mock.Mock
 }
@@ -68,6 +73,14 @@ func (m *MockMessageRepository) UpdateContextSummary(ctx context.Context, messag
 
 func (m *MockMessageRepository) FindLatestMessageWithSummary(ctx context.Context, chatUUID string) (*model.Message, error) {
 	args := m.Called(ctx, chatUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
+func (m *MockMessageRepository) FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error) {
+	args := m.Called(ctx, chatUUID, role)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -396,6 +409,48 @@ func TestChatUsecase_GetMessages(t *testing.T) {
 							SelectedText: "hello",
 							RangeStart:   0,
 							RangeEnd:     5,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: マージレポートが親メッセージにネストされること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				parentUUID := "msg-1"
+				m.messageRepo.On("FindMessagesByChatID", mock.Anything, "chat-uuid").Return([]*model.Message{
+					{
+						UUID:     "msg-1",
+						ChatUUID: "chat-uuid",
+						Role:     "user",
+						Content:  "parent message",
+					},
+					{
+						UUID:              "report-1",
+						ChatUUID:          "chat-uuid",
+						Role:              "merge_report",
+						Content:           "merge report content",
+						ParentMessageUUID: &parentUUID,
+					},
+				}, nil)
+			},
+			want: []*model.Message{
+				{
+					UUID:     "msg-1",
+					ChatUUID: "chat-uuid",
+					Role:     "user",
+					Content:  "parent message",
+					MergeReports: []*model.Message{
+						{
+							UUID:              "report-1",
+							ChatUUID:          "chat-uuid",
+							Role:              "merge_report",
+							Content:           "merge report content",
+							ParentMessageUUID: func() *string { s := "msg-1"; return &s }(),
 						},
 					},
 				},
@@ -1011,6 +1066,400 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 			}
 			if !tt.wantErr {
 				assert.NotEmpty(t, got)
+			} else {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestChatUsecase_GetMergePreview(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      *model.MergePreview
+		wantErr   bool
+	}{
+		{
+			name: "正常系: マージプレビューが生成できること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{
+					UUID:           "chat-uuid",
+					ContextSummary: "parent context",
+				}, nil)
+				m.messageRepo.On("FindLatestMessageWithSummary", mock.Anything, "chat-uuid").Return(&model.Message{
+					ContextSummary: func() *string { s := "child summary"; return &s }(),
+				}, nil)
+				m.messageRepo.On("FindLatestMessageByRole", mock.Anything, "chat-uuid", "assistant").Return(&model.Message{
+					Content: "latest assistant message",
+				}, nil)
+
+				m.genaiClient.On("GenerateContent", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{Text: "summary"},
+								},
+							},
+						},
+					},
+				}, nil)
+			},
+			want: &model.MergePreview{
+				SuggestedSummary: "summary",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: チャット取得失敗",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.GetMergePreview(context.Background(), tt.args.chatUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.GetMergePreview() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestChatUsecase_MergeChat(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+		params   model.MergeChatParams
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      *model.MergeChatResult
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットマージ成功",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				params: model.MergeChatParams{
+					ParentChatUUID: "parent-chat-uuid",
+					SummaryContent: "summary content",
+				},
+			},
+			setupMock: func(m *mocks) {
+				sourceMsgUUID := "source-msg-uuid"
+				// 1. FindByID (Child Chat)
+				m.chatRepo.On("FindByID", mock.Anything, "child-chat-uuid").Return(&model.Chat{
+					UUID:              "child-chat-uuid",
+					SourceMessageUUID: &sourceMsgUUID,
+				}, nil)
+
+				// 2. Transaction
+				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+					fn := args.Get(1).(func(context.Context) error)
+					fn(context.Background())
+				})
+
+				// 3. Create (Report Message)
+				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
+					return msg.Role == "merge_report" &&
+						msg.ChatUUID == "parent-chat-uuid" &&
+						msg.ParentMessageUUID != nil && *msg.ParentMessageUUID == "source-msg-uuid" &&
+						*msg.SourceChatUUID == "child-chat-uuid"
+				})).Return(nil)
+
+				// 4. UpdateStatus
+				m.chatRepo.On("UpdateStatus", mock.Anything, "child-chat-uuid", "merged").Return(nil)
+			},
+			want: &model.MergeChatResult{
+				SummaryContent: "summary content",
+			},
+			wantErr: false,
+		},
+		{
+			name: "異常系: 子チャット取得失敗",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				params: model.MergeChatParams{
+					ParentChatUUID: "parent-chat-uuid",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "child-chat-uuid").Return(nil, errors.New("db error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: ソースメッセージがない場合",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				params: model.MergeChatParams{
+					ParentChatUUID: "parent-chat-uuid",
+				},
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "child-chat-uuid").Return(&model.Chat{
+					UUID:              "child-chat-uuid",
+					SourceMessageUUID: nil,
+				}, nil)
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "異常系: トランザクションエラー",
+			args: args{
+				chatUUID: "child-chat-uuid",
+				params: model.MergeChatParams{
+					ParentChatUUID: "parent-chat-uuid",
+					SummaryContent: "summary content",
+				},
+			},
+			setupMock: func(m *mocks) {
+				sourceMsgUUID := "source-msg-uuid"
+				m.chatRepo.On("FindByID", mock.Anything, "child-chat-uuid").Return(&model.Chat{
+					UUID:              "child-chat-uuid",
+					SourceMessageUUID: &sourceMsgUUID,
+				}, nil)
+
+				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(errors.New("tx error"))
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.MergeChat(context.Background(), tt.args.chatUUID, tt.args.params)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.MergeChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want.SummaryContent, got.SummaryContent)
+				assert.NotEmpty(t, got.ReportMessageID)
+			}
+		})
+	}
+}
+
+func TestChatUsecase_CloseChat(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      string
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットのクローズが成功すること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "closed").Return(nil)
+			},
+			want:    "chat-uuid",
+			wantErr: false,
+		},
+		{
+			name: "異常系: チャットが存在しない場合エラー",
+			args: args{
+				chatUUID: "non-existent",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "non-existent").Return(nil, errors.New("not found"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "異常系: ステータス更新に失敗した場合エラー",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "closed").Return(errors.New("db error"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.CloseChat(context.Background(), tt.args.chatUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.CloseChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestChatUsecase_OpenChat(t *testing.T) {
+	type mocks struct {
+		chatRepo             *MockChatRepository
+		messageRepo          *MockMessageRepository
+		messageSelectionRepo *MockMessageSelectionRepository
+		transactionManager   *MockTransactionManager
+		genaiClient          *MockGenAIClient
+		publisher            *MockPublisher
+	}
+	type args struct {
+		chatUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(m *mocks)
+		want      string
+		wantErr   bool
+	}{
+		{
+			name: "正常系: チャットオープンが成功すること",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "open").Return(nil)
+			},
+			want:    "chat-uuid",
+			wantErr: false,
+		},
+		{
+			name: "異常系: チャットが存在しない場合エラー",
+			args: args{
+				chatUUID: "non-existent",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "non-existent").Return(nil, errors.New("not found"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "異常系: ステータス更新に失敗した場合エラー",
+			args: args{
+				chatUUID: "chat-uuid",
+			},
+			setupMock: func(m *mocks) {
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid"}, nil)
+				m.chatRepo.On("UpdateStatus", mock.Anything, "chat-uuid", "open").Return(errors.New("db error"))
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mocks{
+				chatRepo:             &MockChatRepository{},
+				messageRepo:          &MockMessageRepository{},
+				messageSelectionRepo: &MockMessageSelectionRepository{},
+				transactionManager:   &MockTransactionManager{},
+				genaiClient:          &MockGenAIClient{},
+				publisher:            &MockPublisher{},
+			}
+			tt.setupMock(m)
+
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+
+			got, err := u.OpenChat(context.Background(), tt.args.chatUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatUsecase.OpenChat() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				assert.Equal(t, tt.want, got)
 			}
 		})
 	}

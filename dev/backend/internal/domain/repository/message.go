@@ -14,4 +14,5 @@ type MessageRepository interface {
 	UpdateContextSummary(ctx context.Context, messageUUID string, summary string) error
 	// 指定されたチャットIDの中で、コンテキストサマリを持つ最新のメッセージを取得する処理
 	FindLatestMessageWithSummary(ctx context.Context, chatUUID string) (*model.Message, error)
+	FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error)
 }

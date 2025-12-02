@@ -13,8 +13,10 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/genai"
+	"gorm.io/gorm"
 )
 
 // アプリケーションのエントリーポイント
@@ -49,9 +51,6 @@ func main() {
 	}
 	// defer genaiClient.Close() // main関数終了時に閉じる必要はないが、明示的に書くならここ
 
-	// Echo インスタンス
-	e := echo.New()
-
 	// Watermill Publisher の初期化
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -71,19 +70,30 @@ func main() {
 	defer subscriber.Close()
 
 	// Worker の初期化と起動
-	messageRepo := repository.NewMessageRepository(db)
-	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
-	summaryWorker := worker.NewSummaryWorker(subscriber, messageRepo, genaiClientWrapper)
-
+	summaryWorker := setupWorker(db, genaiClient, subscriber)
 	go func() {
 		if err := summaryWorker.Run(context.Background()); err != nil {
 			slog.Error("SummaryWorker failed", "error", err)
 		}
 	}()
 
-	// ルーティング
-	router.InitRoutes(e, db, cfg, genaiClient, publisher)
+	// サーバーの初期化
+	e := setupServer(cfg, db, genaiClient, publisher)
 
 	// サーバーの起動
 	e.Logger.Fatal(e.Start(cfg.Server.Address))
+}
+
+// Workerの依存関係を初期化する
+func setupWorker(db *gorm.DB, genaiClient *genai.Client, subscriber message.Subscriber) *worker.SummaryWorker {
+	messageRepo := repository.NewMessageRepository(db)
+	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
+	return worker.NewSummaryWorker(subscriber, messageRepo, genaiClientWrapper)
+}
+
+// サーバーの依存関係を初期化する
+func setupServer(cfg *config.Config, db *gorm.DB, genaiClient *genai.Client, publisher message.Publisher) *echo.Echo {
+	e := echo.New()
+	router.InitRoutes(e, db, cfg, genaiClient, publisher)
+	return e
 }

@@ -167,3 +167,78 @@ func TestChatRepository_FindByID(t *testing.T) {
 		})
 	}
 }
+
+func TestChatRepository_UpdateStatus(t *testing.T) {
+	type args struct {
+		chatUUID string
+		status   string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupData func(db *gorm.DB)
+		wantErr   bool
+	}{
+		{
+			name: "正常系: ステータスが更新できること",
+			args: args{
+				chatUUID: "chat-uuid",
+				status:   "merged",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&chatORM{
+					UUID:        "chat-uuid",
+					ProjectUUID: "project-uuid",
+					Title:       "test chat",
+					Status:      "open",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: 存在しないチャットでもエラーにならない（GORMの仕様）",
+			args: args{
+				chatUUID: "non-existent",
+				status:   "merged",
+			},
+			setupData: func(db *gorm.DB) {},
+			wantErr:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// インメモリDBのセットアップ
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("failed to connect database: %v", err)
+			}
+			// マイグレーション
+			if err := db.AutoMigrate(&chatORM{}); err != nil {
+				t.Fatalf("failed to migrate database: %v", err)
+			}
+
+			// データ投入
+			if tt.setupData != nil {
+				tt.setupData(db)
+			}
+
+			r := NewChatRepository(db)
+			if err := r.UpdateStatus(context.Background(), tt.args.chatUUID, tt.args.status); (err != nil) != tt.wantErr {
+				t.Errorf("chatRepository.UpdateStatus() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			// 更新確認
+			if !tt.wantErr && tt.name == "正常系: ステータスが更新できること" {
+				var orm chatORM
+				if err := db.Where("uuid = ?", tt.args.chatUUID).First(&orm).Error; err != nil {
+					t.Fatalf("failed to fetch chat: %v", err)
+				}
+				if orm.Status != tt.args.status {
+					t.Errorf("status = %v, want %v", orm.Status, tt.args.status)
+				}
+			}
+		})
+	}
+}
