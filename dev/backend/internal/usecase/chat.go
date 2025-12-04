@@ -153,11 +153,33 @@ func (u *chatUsecase) StreamMessage(ctx context.Context, chatUUID string, output
 	}
 
 	// 5. 生成された文章の保存
+	// 位置計算
+	chat, err := u.chatRepo.FindByID(ctx, chatUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "チャット取得失敗", "chat_uuid", chatUUID, "error", err)
+		return err
+	}
+
+	assistantCount := 0
+	for _, msg := range allMessages {
+		if msg.Role == "assistant" {
+			assistantCount++
+		}
+	}
+
+	// ノード間距離(50)を考慮
+	// PositionX = chat.PositionX
+	// PositionY = chat.PositionY + assistantCount * (100 + 50)
+	positionX := chat.PositionX
+	positionY := chat.PositionY + float64(assistantCount)*150.0
+
 	assistantMessage := &model.Message{
 		UUID:      uuid.New().String(),
 		ChatUUID:  chatUUID,
 		Role:      "assistant",
 		Content:   fullResponse,
+		PositionX: positionX,
+		PositionY: positionY,
 		CreatedAt: time.Now(),
 	}
 
@@ -189,7 +211,7 @@ func (u *chatUsecase) FirstStreamChat(ctx context.Context, chatUUID string, outp
 	slog.InfoContext(ctx, "チャットストリーム処理開始", "chat_uuid", chatUUID)
 
 	// 1. チャットの存在確認
-	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	chat, err := u.chatRepo.FindByID(ctx, chatUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
 		return err
@@ -238,11 +260,19 @@ func (u *chatUsecase) FirstStreamChat(ctx context.Context, chatUUID string, outp
 	}
 
 	// 6. 生成された文章の保存
+	// 位置計算
+	// PositionX = chat.PositionX
+	// PositionY = chat.PositionY + (0 + 1) * (100 + 50)
+	positionX := chat.PositionX
+	positionY := chat.PositionY
+
 	assistantMessage := &model.Message{
 		UUID:      uuid.New().String(),
 		ChatUUID:  chatUUID,
 		Role:      "assistant",
 		Content:   fullResponse,
+		PositionX: positionX,
+		PositionY: positionY,
 		CreatedAt: time.Now(),
 	}
 
@@ -302,7 +332,7 @@ func (u *chatUsecase) SendMessage(ctx context.Context, chatUUID string, content 
 	slog.InfoContext(ctx, "メッセージ送信処理開始", "chat_uuid", chatUUID)
 
 	// チャットの存在確認
-	_, err := u.chatRepo.FindByID(ctx, chatUUID)
+	chat, err := u.chatRepo.FindByID(ctx, chatUUID)
 	if err != nil {
 		slog.ErrorContext(ctx, "チャットが見つかりません", "chat_uuid", chatUUID, "error", err)
 		return nil, err
@@ -313,6 +343,8 @@ func (u *chatUsecase) SendMessage(ctx context.Context, chatUUID string, content 
 		ChatUUID:  chatUUID,
 		Role:      "user",
 		Content:   content,
+		PositionX: chat.PositionX, // ユーザーメッセージはチャットと同じX位置（暫定）
+		PositionY: chat.PositionY, // ユーザーメッセージはチャットと同じY位置（暫定、AIメッセージ計算時に使用されないので影響小）
 		CreatedAt: time.Now(),
 	}
 
@@ -490,14 +522,32 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 		return "", fmt.Errorf("親チャットの存在確認に失敗: %w", err)
 	}
 
-	// 2. トランザクション処理
+	// 2. フォーク元のメッセージを取得（位置計算のため）
+	targetMessage, err := u.messageRepo.FindByID(ctx, params.TargetMessageUUID)
+	if err != nil {
+		return "", err
+	}
+
+	// 3. プロジェクト内のチャット数を取得
+	chatCount, err := u.chatRepo.CountByProjectUUID(ctx, parentChat.ProjectUUID)
+	if err != nil {
+		return "", fmt.Errorf("チャット数の取得に失敗: %w", err)
+	}
+
+	// 4. 新しいチャットの位置計算
+	// PositionX = count * (200 + 50)
+	// PositionY = TargetMessage.PositionY
+	newChatPositionX := float64(chatCount) * 250.0
+	newChatPositionY := targetMessage.PositionY
+
+	// 5. トランザクション処理
 	// MessageSelection作成 -> Chat作成 -> Message作成
 	newChatUUID := uuid.New().String()
 	selectionUUID := uuid.New().String()
 	messageUUID := uuid.New().String()
 
 	err = u.transactionManager.Do(ctx, func(ctx context.Context) error {
-		// 2-1. MessageSelection作成
+		// 5-1. MessageSelection作成
 		selection := &model.MessageSelection{
 			UUID:         selectionUUID,
 			SelectedText: params.SelectedText,
@@ -509,7 +559,7 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 			return fmt.Errorf("メッセージ選択の作成に失敗: %w", err)
 		}
 
-		// 2-2. Chat作成
+		// 5-2. Chat作成
 		newChat := &model.Chat{
 			UUID:                 newChatUUID,
 			ProjectUUID:          parentChat.ProjectUUID, // 親チャットと同じプロジェクト
@@ -519,6 +569,8 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 			Title:                params.Title,
 			Status:               "open",
 			ContextSummary:       params.ContextSummary,
+			PositionX:            newChatPositionX,
+			PositionY:            newChatPositionY,
 			CreatedAt:            time.Now(),
 			UpdatedAt:            time.Now(),
 		}
@@ -526,7 +578,7 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 			return fmt.Errorf("新しいチャットの作成に失敗: %w", err)
 		}
 
-		// 2-3. Message作成 (最初のメッセージ)
+		// 5-3. Message作成 (最初のメッセージ)
 		// タイトルとコンテキストサマリを結合した文章をユーザーメッセージとして保存
 		initialContent := fmt.Sprintf("%s\n\n%s", params.Title, params.ContextSummary)
 		message := &model.Message{
@@ -534,6 +586,8 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 			ChatUUID:  newChatUUID,
 			Role:      "assistant",
 			Content:   initialContent,
+			PositionX: newChatPositionX, // チャットと同じ位置
+			PositionY: newChatPositionY, // チャットと同じ位置
 			CreatedAt: time.Now(),
 		}
 		if err := u.messageRepo.Create(ctx, message); err != nil {

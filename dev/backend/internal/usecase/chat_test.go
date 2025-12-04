@@ -57,6 +57,11 @@ func (m *MockChatRepository) FindOldestByProjectUUID(ctx context.Context, projec
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *MockChatRepository) CountByProjectUUID(ctx context.Context, projectUUID string) (int64, error) {
+	args := m.Called(ctx, projectUUID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 type MockMessageRepository struct {
 	mock.Mock
 }
@@ -89,6 +94,14 @@ func (m *MockMessageRepository) FindLatestMessageWithSummary(ctx context.Context
 
 func (m *MockMessageRepository) FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error) {
 	args := m.Called(ctx, chatUUID, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
+func (m *MockMessageRepository) FindByID(ctx context.Context, uuid string) (*model.Message, error) {
+	args := m.Called(ctx, uuid)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -174,7 +187,8 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 				m.genaiClient.On("GenerateContentStream", mock.Anything, "gemini-2.5-flash", mock.Anything, (*genai.GenerateContentConfig)(nil)).Return(mockIter)
 				// 4. Create (Assistant Message)
 				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
-					return msg.Role == "assistant" && msg.Content == "world" && msg.ChatUUID == "chat-uuid"
+					// PositionY should be equal to chat.PositionY (0)
+					return msg.Role == "assistant" && msg.Content == "world" && msg.ChatUUID == "chat-uuid" && msg.PositionY == 0
 				})).Return(nil)
 			},
 			wantErr: false,
@@ -637,11 +651,14 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 					}, nil)
 				}
 				m.genaiClient.On("GenerateContentStream", mock.Anything, "gemini-2.5-flash", mock.Anything, (*genai.GenerateContentConfig)(nil)).Return(mockIter)
-				// 4. Create (Assistant Message)
+				// 4. FindByID (for position)
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid", PositionX: 0, PositionY: 0}, nil)
+				// 5. Create (Assistant Message)
 				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
-					return msg.Role == "assistant" && msg.Content == "world" && msg.ChatUUID == "chat-uuid"
+					// assistantCount is 0, so PositionY = 0
+					return msg.Role == "assistant" && msg.Content == "world" && msg.ChatUUID == "chat-uuid" && msg.PositionY == 0
 				})).Return(nil)
-				// 5. PublishTask
+				// 6. PublishTask
 				m.publisher.On("Publish", "chat_summary", mock.Anything).Return(nil)
 			},
 			wantErr: false,
@@ -674,11 +691,14 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 					}, nil)
 				}
 				m.genaiClient.On("GenerateContentStream", mock.Anything, "gemini-2.5-flash", mock.Anything, (*genai.GenerateContentConfig)(nil)).Return(mockIter)
-				// 4. Create (Assistant Message)
+				// 4. FindByID (for position)
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid", PositionX: 0, PositionY: 0}, nil)
+				// 5. Create (Assistant Message)
 				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
-					return msg.Role == "assistant" && msg.Content == "response"
+					// assistantCount is 0, so PositionY = 0
+					return msg.Role == "assistant" && msg.Content == "response" && msg.PositionY == 0
 				})).Return(nil)
-				// 5. PublishTask
+				// 6. PublishTask
 				m.publisher.On("Publish", "chat_summary", mock.Anything).Return(nil)
 			},
 			wantErr: false,
@@ -754,6 +774,8 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 					}, nil)
 				}
 				m.genaiClient.On("GenerateContentStream", mock.Anything, "gemini-2.5-flash", mock.Anything, (*genai.GenerateContentConfig)(nil)).Return(mockIter)
+				// FindByID (for position)
+				m.chatRepo.On("FindByID", mock.Anything, "chat-uuid").Return(&model.Chat{UUID: "chat-uuid", PositionX: 0, PositionY: 0}, nil)
 
 				m.messageRepo.On("Create", mock.Anything, mock.Anything).Return(errors.New("db error"))
 			},
@@ -997,25 +1019,35 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 					ProjectUUID: "project-1",
 				}, nil)
 
-				// 2. Transaction
+				// 2. FindByID (Target Message)
+				m.messageRepo.On("FindByID", mock.Anything, "msg-1").Return(&model.Message{
+					UUID:      "msg-1",
+					PositionY: 100,
+				}, nil)
+
+				// 3. CountByProjectUUID
+				m.chatRepo.On("CountByProjectUUID", mock.Anything, "project-1").Return(int64(5), nil)
+
+				// 4. Transaction
 				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 					fn := args.Get(1).(func(context.Context) error)
 					fn(context.Background())
 				})
 
-				// 3. Create MessageSelection
+				// 5. Create MessageSelection
 				m.messageSelectionRepo.On("Create", mock.Anything, mock.MatchedBy(func(s *model.MessageSelection) bool {
 					return s.SelectedText == "selected"
 				})).Return(nil)
 
-				// 4. Create Chat
+				// 6. Create Chat
 				m.chatRepo.On("Create", mock.Anything, mock.MatchedBy(func(c *model.Chat) bool {
-					return c.Title == "New Chat" && c.ProjectUUID == "project-1" && *c.ParentUUID == "parent-chat"
+					// PositionX = 5 * 250 = 1250, PositionY = 100
+					return c.Title == "New Chat" && c.ProjectUUID == "project-1" && *c.ParentUUID == "parent-chat" && c.PositionX == 1250 && c.PositionY == 100
 				})).Return(nil)
 
-				// 5. Create Message
+				// 7. Create Message
 				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
-					return msg.Role == "assistant" && msg.Content == "New Chat\n\nSummary"
+					return msg.Role == "assistant" && msg.Content == "New Chat\n\nSummary" && msg.PositionX == 1250 && msg.PositionY == 100
 				})).Return(nil)
 			},
 			want:    "new-chat-id", // UUIDはランダム生成なので、空文字でないことを確認する
@@ -1038,7 +1070,8 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 			name: "異常系: トランザクションエラー",
 			args: args{
 				params: model.ForkChatParams{
-					ParentChatUUID: "parent-chat",
+					ParentChatUUID:    "parent-chat",
+					TargetMessageUUID: "msg-1",
 				},
 			},
 			setupMock: func(m *mocks) {
@@ -1046,6 +1079,13 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 					UUID:        "parent-chat",
 					ProjectUUID: "project-1",
 				}, nil)
+
+				m.messageRepo.On("FindByID", mock.Anything, "msg-1").Return(&model.Message{
+					UUID:      "msg-1",
+					PositionY: 100,
+				}, nil)
+
+				m.chatRepo.On("CountByProjectUUID", mock.Anything, "project-1").Return(int64(5), nil)
 
 				m.transactionManager.On("Do", mock.Anything, mock.Anything).Return(errors.New("tx error"))
 			},
