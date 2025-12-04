@@ -59,6 +59,11 @@ func (m *mockChatRepository) FindOldestByProjectUUID(ctx context.Context, projec
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *mockChatRepository) CountByProjectUUID(ctx context.Context, projectUUID string) (int64, error) {
+	args := m.Called(ctx, projectUUID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 type mockMessageRepository struct {
 	mock.Mock
 }
@@ -91,6 +96,14 @@ func (m *mockMessageRepository) FindLatestMessageWithSummary(ctx context.Context
 
 func (m *mockMessageRepository) FindLatestMessageByRole(ctx context.Context, chatUUID string, role string) (*model.Message, error) {
 	args := m.Called(ctx, chatUUID, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
+func (m *mockMessageRepository) FindByID(ctx context.Context, uuid string) (*model.Message, error) {
+	args := m.Called(ctx, uuid)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
