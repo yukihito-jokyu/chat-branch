@@ -206,6 +206,7 @@ export function MessageItem({ message }: MessageItemProps) {
 
   return (
     <div
+      id={`message-${message.uuid}`}
       className={cn(
         "flex gap-4 p-4 min-w-0",
         isUser ? "flex-row-reverse" : "flex-row"

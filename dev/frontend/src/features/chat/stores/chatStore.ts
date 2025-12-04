@@ -29,6 +29,8 @@ type ChatStore = {
   setCurrentChatId: (chatId: string | null) => void;
   isMergeModalOpen: boolean;
   setMergeModalOpen: (isOpen: boolean) => void;
+  viewMode: "chat" | "map";
+  setViewMode: (mode: "chat" | "map") => void;
 };
 
 const initialDeepDiveState: DeepDiveState = {
@@ -51,4 +53,6 @@ export const useChatStore = create<ChatStore>((set) => ({
   setCurrentChatId: (chatId) => set({ currentChatId: chatId }),
   isMergeModalOpen: false,
   setMergeModalOpen: (isOpen) => set({ isMergeModalOpen: isOpen }),
+  viewMode: "chat",
+  setViewMode: (mode) => set({ viewMode: mode }),
 }));

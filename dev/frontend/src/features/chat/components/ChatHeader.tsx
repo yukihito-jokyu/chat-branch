@@ -1,5 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Lock, Unlock, Loader2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  Lock,
+  Unlock,
+  Loader2,
+  Map,
+  MessageSquare,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ChatBreadcrumb } from "./ChatBreadcrumb";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +25,8 @@ export function ChatHeader({ chat, chatId }: ChatHeaderProps) {
   const { t } = useTranslation("chat");
   const queryClient = useQueryClient();
   const setMergeModalOpen = useChatStore((state) => state.setMergeModalOpen);
+  const viewMode = useChatStore((state) => state.viewMode);
+  const setViewMode = useChatStore((state) => state.setViewMode);
 
   const closeMutation = useMutation({
     mutationFn: () => closeChat(chatId),
@@ -52,40 +61,61 @@ export function ChatHeader({ chat, chatId }: ChatHeaderProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setMergeModalOpen(true)}
-          disabled={chat.status === "closed" || chat.status === "merged"}
+          onClick={() => setViewMode(viewMode === "chat" ? "map" : "chat")}
         >
-          <ArrowUpRight className="w-4 h-4 mr-2" />
-          {chat.status === "merged" ? t("merged") : t("merge")}
+          {viewMode === "chat" ? (
+            <>
+              <Map className="w-4 h-4 mr-2" />
+              {t("mapMode")}
+            </>
+          ) : (
+            <>
+              <MessageSquare className="w-4 h-4 mr-2" />
+              {t("chatMode")}
+            </>
+          )}
         </Button>
-        {chat.status === "closed" ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openMutation.mutate()}
-            disabled={openMutation.isPending}
-          >
-            {openMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        {chat.parent_uuid && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMergeModalOpen(true)}
+              disabled={chat.status === "closed" || chat.status === "merged"}
+            >
+              <ArrowUpRight className="w-4 h-4 mr-2" />
+              {chat.status === "merged" ? t("merged") : t("merge")}
+            </Button>
+            {chat.status === "closed" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openMutation.mutate()}
+                disabled={openMutation.isPending}
+              >
+                {openMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Unlock className="w-4 h-4 mr-2" />
+                )}
+                {t("open")}
+              </Button>
             ) : (
-              <Unlock className="w-4 h-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => closeMutation.mutate()}
+                disabled={closeMutation.isPending || chat.status === "merged"}
+              >
+                {closeMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4 mr-2" />
+                )}
+                {t("close")}
+              </Button>
             )}
-            {t("open")}
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => closeMutation.mutate()}
-            disabled={closeMutation.isPending || chat.status === "merged"}
-          >
-            {closeMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Lock className="w-4 h-4 mr-2" />
-            )}
-            {t("close")}
-          </Button>
+          </>
         )}
       </div>
     </div>

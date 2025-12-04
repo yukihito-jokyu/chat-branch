@@ -10,6 +10,7 @@ import { DeepDiveMenu } from "./DeepDiveMenu";
 import { MergeChatModal } from "./MergeChatModal";
 import { ChatHeader } from "./ChatHeader";
 import { DeepDiveModal } from "./DeepDiveModal";
+import { MapFlow } from "../../map/components/MapFlow";
 
 type ChatAreaProps = {
   chatId: string;
@@ -59,6 +60,19 @@ export function ChatArea({ chatId }: ChatAreaProps) {
     setPendingStreamChatId,
   ]);
 
+  const viewMode = useChatStore((state) => state.viewMode);
+  const setViewMode = useChatStore((state) => state.setViewMode);
+
+  const handleNodeClick = (messageId: string) => {
+    setViewMode("chat");
+    setTimeout(() => {
+      const element = document.getElementById(`message-${messageId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -70,13 +84,22 @@ export function ChatArea({ chatId }: ChatAreaProps) {
   return (
     <div className="flex flex-col h-full relative">
       <div className="flex-1 flex flex-col min-h-0">
-        {chat?.parent_uuid && <ChatHeader chat={chat} chatId={chatId} />}
-        <MessageList messages={messages} />
+        <ChatHeader
+          chat={chat || { status: "open", parent_uuid: null }}
+          chatId={chatId}
+        />
+        {viewMode === "chat" ? (
+          <MessageList messages={messages} />
+        ) : (
+          <MapFlow messages={messages} onNodeClick={handleNodeClick} />
+        )}
       </div>
-      <InputArea
-        onSend={sendMessage}
-        disabled={isStreaming || chat?.status === "closed"}
-      />
+      {viewMode === "chat" && (
+        <InputArea
+          onSend={sendMessage}
+          disabled={isStreaming || chat?.status === "closed"}
+        />
+      )}
 
       <DeepDiveMenu />
 
