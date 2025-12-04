@@ -148,6 +148,7 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -279,13 +280,14 @@ func TestChatUsecase_FirstStreamChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			outputChan := make(chan string, 10)
 			err := u.FirstStreamChat(context.Background(), tt.args.chatUUID, outputChan)
@@ -312,6 +314,7 @@ func TestChatUsecase_GetChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -359,13 +362,14 @@ func TestChatUsecase_GetChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GetChat(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -382,6 +386,7 @@ func TestChatUsecase_GetMessages(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -497,13 +502,14 @@ func TestChatUsecase_GetMessages(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GetMessages(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -520,6 +526,7 @@ func TestChatUsecase_SendMessage(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -586,13 +593,14 @@ func TestChatUsecase_SendMessage(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.SendMessage(context.Background(), tt.args.chatUUID, tt.args.content)
 			if (err != nil) != tt.wantErr {
@@ -615,6 +623,7 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -789,13 +798,14 @@ func TestChatUsecase_StreamMessage(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			outputChan := make(chan string, 10)
 			err := u.StreamMessage(context.Background(), tt.args.chatUUID, outputChan)
@@ -825,6 +835,7 @@ func TestChatUsecase_GenerateForkPreview(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -962,13 +973,14 @@ func TestChatUsecase_GenerateForkPreview(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GenerateForkPreview(context.Background(), tt.args.chatUUID, tt.args.req)
 			if (err != nil) != tt.wantErr {
@@ -985,6 +997,7 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -1049,6 +1062,12 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 				m.messageRepo.On("Create", mock.Anything, mock.MatchedBy(func(msg *model.Message) bool {
 					return msg.Role == "assistant" && msg.Content == "New Chat\n\nSummary" && msg.PositionX == 1250 && msg.PositionY == 100
 				})).Return(nil)
+
+				// 8. Create Edge
+				m.edgeRepo.On("Create", mock.Anything, mock.MatchedBy(func(edge *model.Edge) bool {
+					// TargetMessageUUID is "msg-1"
+					return edge.TargetMessageUUID == "msg-1"
+				})).Return(nil)
 			},
 			want:    "new-chat-id", // UUIDはランダム生成なので、空文字でないことを確認する
 			wantErr: false,
@@ -1099,13 +1118,14 @@ func TestChatUsecase_ForkChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.ForkChat(context.Background(), tt.args.params)
 			if (err != nil) != tt.wantErr {
@@ -1126,6 +1146,7 @@ func TestChatUsecase_GetMergePreview(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -1192,13 +1213,14 @@ func TestChatUsecase_GetMergePreview(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.GetMergePreview(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -1217,6 +1239,7 @@ func TestChatUsecase_MergeChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -1330,13 +1353,14 @@ func TestChatUsecase_MergeChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.MergeChat(context.Background(), tt.args.chatUUID, tt.args.params)
 			if (err != nil) != tt.wantErr {
@@ -1356,6 +1380,7 @@ func TestChatUsecase_CloseChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -1412,13 +1437,14 @@ func TestChatUsecase_CloseChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.CloseChat(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
@@ -1437,6 +1463,7 @@ func TestChatUsecase_OpenChat(t *testing.T) {
 		chatRepo             *MockChatRepository
 		messageRepo          *MockMessageRepository
 		messageSelectionRepo *MockMessageSelectionRepository
+		edgeRepo             *mockEdgeRepository
 		transactionManager   *MockTransactionManager
 		genaiClient          *MockGenAIClient
 		publisher            *MockPublisher
@@ -1493,13 +1520,14 @@ func TestChatUsecase_OpenChat(t *testing.T) {
 				chatRepo:             &MockChatRepository{},
 				messageRepo:          &MockMessageRepository{},
 				messageSelectionRepo: &MockMessageSelectionRepository{},
+				edgeRepo:             &mockEdgeRepository{},
 				transactionManager:   &MockTransactionManager{},
 				genaiClient:          &MockGenAIClient{},
 				publisher:            &MockPublisher{},
 			}
 			tt.setupMock(m)
 
-			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.transactionManager, m.genaiClient, m.publisher)
+			u := NewChatUsecase(m.chatRepo, m.messageRepo, m.messageSelectionRepo, m.edgeRepo, m.transactionManager, m.genaiClient, m.publisher)
 
 			got, err := u.OpenChat(context.Background(), tt.args.chatUUID)
 			if (err != nil) != tt.wantErr {
