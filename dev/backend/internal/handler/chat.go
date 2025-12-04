@@ -4,7 +4,6 @@ import (
 	domainModel "backend/internal/domain/model"
 	"backend/internal/domain/usecase"
 	"backend/internal/handler/model"
-	handlerModel "backend/internal/handler/model"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -287,7 +286,7 @@ func (h *chatHandler) ForkChat(c echo.Context) error {
 	chatUUID := c.Param("chat_uuid")
 	ctx := c.Request().Context()
 
-	var req handlerModel.ForkChatRequest
+	var req model.ForkChatRequest
 	if err := c.Bind(&req); err != nil {
 		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
 		return c.JSON(http.StatusBadRequest, model.Response{Status: "error", Message: err.Error()})
@@ -319,7 +318,7 @@ func (h *chatHandler) ForkChat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, model.Response{Status: "error", Message: err.Error()})
 	}
 
-	res := handlerModel.ForkChatResponse{
+	res := model.ForkChatResponse{
 		NewChatID: newChatID,
 		Message:   "子チャットを作成しました",
 	}
@@ -343,7 +342,7 @@ func (h *chatHandler) GetMergePreview(c echo.Context) error {
 		})
 	}
 
-	res := handlerModel.MergePreviewResponse{
+	res := model.MergePreviewResponse{
 		SuggestedSummary: preview.SuggestedSummary,
 	}
 
@@ -357,7 +356,7 @@ func (h *chatHandler) MergeChat(c echo.Context) error {
 
 	slog.InfoContext(ctx, "MergeChat リクエスト受信", "chat_uuid", chatUUID)
 
-	var req handlerModel.MergeChatRequest
+	var req model.MergeChatRequest
 	if err := c.Bind(&req); err != nil {
 		slog.ErrorContext(ctx, "リクエストボディのバインドエラー", "error", err)
 		return c.JSON(http.StatusBadRequest, model.Response{
@@ -380,7 +379,7 @@ func (h *chatHandler) MergeChat(c echo.Context) error {
 		})
 	}
 
-	res := handlerModel.MergeChatResponse{
+	res := model.MergeChatResponse{
 		ReportMessageID: result.ReportMessageID,
 		SummaryContent:  result.SummaryContent,
 	}
@@ -404,7 +403,7 @@ func (h *chatHandler) CloseChat(c echo.Context) error {
 		})
 	}
 
-	res := handlerModel.CloseChatResponse{
+	res := model.CloseChatResponse{
 		ChatUUID: uuid,
 	}
 
@@ -427,7 +426,7 @@ func (h *chatHandler) OpenChat(c echo.Context) error {
 		})
 	}
 
-	res := handlerModel.OpenChatResponse{
+	res := model.OpenChatResponse{
 		ChatUUID: uuid,
 	}
 
