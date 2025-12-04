@@ -77,6 +77,16 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		})
 	}
 
+	cookie := new(http.Cookie)
+	cookie.Name = "jwt_token"
+	cookie.Value = token
+	cookie.HttpOnly = false
+	// cookie.Secure = true
+	cookie.SameSite = http.SameSiteLaxMode
+	cookie.Path = "/"
+	cookie.MaxAge = 36000
+	c.SetCookie(cookie)
+
 	slog.InfoContext(ctx, "ゲストログインに成功", "user_uuid", req.UserUUID)
 	return c.JSON(http.StatusOK, model.LoginResponse{
 		Token: token,
