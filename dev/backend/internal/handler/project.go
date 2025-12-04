@@ -133,3 +133,57 @@ func (h *projectHandler) GetParentChat(c echo.Context) error {
 	slog.InfoContext(ctx, "親チャットの取得に成功", "project_uuid", projectUUID, "chat_uuid", chat.UUID)
 	return c.JSON(http.StatusOK, res)
 }
+
+// プロジェクトツリー取得処理
+func (h *projectHandler) GetProjectTree(c echo.Context) error {
+	ctx := c.Request().Context()
+	projectUUID := c.Param("project_uuid")
+	if projectUUID == "" {
+		slog.WarnContext(ctx, "project_uuidが指定されていません")
+		return c.JSON(http.StatusBadRequest, model.Response{
+			Status:  "error",
+			Message: "project_uuidは必須です",
+		})
+	}
+
+	tree, err := h.projectUsecase.GetProjectTree(ctx, projectUUID)
+	if err != nil {
+		slog.ErrorContext(ctx, "プロジェクトツリーの取得に失敗", "error", err)
+		return c.JSON(http.StatusInternalServerError, model.Response{
+			Status:  "error",
+			Message: err.Error(),
+		})
+	}
+
+	nodes := make([]model.ProjectNode, len(tree.Nodes))
+	for i, n := range tree.Nodes {
+		nodes[i] = model.ProjectNode{
+			ID: n.ID,
+			Data: model.ProjectNodeData{
+				UserMessage: n.Data.UserMessage,
+				Assistant:   n.Data.Assistant,
+			},
+			Position: model.ProjectNodePosition{
+				X: n.Position.X,
+				Y: n.Position.Y,
+			},
+		}
+	}
+
+	edges := make([]model.ProjectEdge, len(tree.Edges))
+	for i, e := range tree.Edges {
+		edges[i] = model.ProjectEdge{
+			ID:     e.ID,
+			Source: e.Source,
+			Target: e.Target,
+		}
+	}
+
+	res := model.GetProjectTreeResponse{
+		Nodes: nodes,
+		Edges: edges,
+	}
+
+	slog.InfoContext(ctx, "プロジェクトツリーの取得に成功", "project_uuid", projectUUID, "nodes", len(nodes), "edges", len(edges))
+	return c.JSON(http.StatusOK, res)
+}
