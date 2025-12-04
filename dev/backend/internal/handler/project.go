@@ -158,7 +158,8 @@ func (h *projectHandler) GetProjectTree(c echo.Context) error {
 	nodes := make([]model.ProjectNode, len(tree.Nodes))
 	for i, n := range tree.Nodes {
 		nodes[i] = model.ProjectNode{
-			ID: n.ID,
+			ID:       n.ID,
+			ChatUUID: n.ChatUUID,
 			Data: model.ProjectNodeData{
 				UserMessage: n.Data.UserMessage,
 				Assistant:   n.Data.Assistant,

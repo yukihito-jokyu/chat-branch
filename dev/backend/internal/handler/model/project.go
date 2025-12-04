@@ -35,6 +35,7 @@ type GetProjectTreeResponse struct {
 
 type ProjectNode struct {
 	ID       string              `json:"id"`
+	ChatUUID string              `json:"chat_uuid"`
 	Data     ProjectNodeData     `json:"data"`
 	Position ProjectNodePosition `json:"position"`
 }

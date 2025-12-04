@@ -154,7 +154,8 @@ func (u *projectUsecase) GetProjectTree(ctx context.Context, projectUUID string)
 					assistantMsg := messages[i+1]
 					userContent := msg.Content
 					node = &model.ProjectNode{
-						ID: assistantMsg.UUID,
+						ID:       assistantMsg.UUID,
+						ChatUUID: assistantMsg.ChatUUID,
 						Data: model.ProjectNodeData{
 							UserMessage: &userContent,
 							Assistant:   assistantMsg.Content,
@@ -177,7 +178,8 @@ func (u *projectUsecase) GetProjectTree(ctx context.Context, projectUUID string)
 			} else if msg.Role == "assistant" {
 				// アシスタントメッセージ単体の場合
 				node = &model.ProjectNode{
-					ID: msg.UUID,
+					ID:       msg.UUID,
+					ChatUUID: msg.ChatUUID,
 					Data: model.ProjectNodeData{
 						UserMessage: nil,
 						Assistant:   msg.Content,
@@ -222,4 +224,3 @@ func (u *projectUsecase) GetProjectTree(ctx context.Context, projectUUID string)
 		Edges: edges,
 	}, nil
 }
-

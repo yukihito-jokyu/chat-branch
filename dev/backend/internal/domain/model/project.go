@@ -17,6 +17,7 @@ type ProjectTree struct {
 
 type ProjectNode struct {
 	ID       string
+	ChatUUID string
 	Data     ProjectNodeData
 	Position ProjectNodePosition
 }
