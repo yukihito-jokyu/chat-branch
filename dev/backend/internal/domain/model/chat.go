@@ -11,6 +11,8 @@ type Chat struct {
 	Title                string
 	Status               string
 	ContextSummary       string
+	PositionX            float64
+	PositionY            float64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
