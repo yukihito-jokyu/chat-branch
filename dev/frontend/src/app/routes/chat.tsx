@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { ChatLayout } from "@/features/chat/components/ChatLayout";
 
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
@@ -6,8 +7,8 @@ export const Route = createFileRoute("/chat")({
 
 function ChatPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <h1 className="text-4xl font-bold">chatページ</h1>
-    </div>
+    <ChatLayout>
+      <Outlet />
+    </ChatLayout>
   );
 }
