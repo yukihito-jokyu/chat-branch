@@ -38,6 +38,7 @@ type chatUsecase struct {
 	chatRepo             repository.ChatRepository
 	messageRepo          repository.MessageRepository
 	messageSelectionRepo repository.MessageSelectionRepository
+	edgeRepo             repository.EdgeRepository
 	transactionManager   repository.TransactionManager
 	genaiClient          domainUsecase.GenAIClient
 	publisher            message.Publisher
@@ -47,6 +48,7 @@ func NewChatUsecase(
 	chatRepo repository.ChatRepository,
 	messageRepo repository.MessageRepository,
 	messageSelectionRepo repository.MessageSelectionRepository,
+	edgeRepo repository.EdgeRepository,
 	transactionManager repository.TransactionManager,
 	genaiClient domainUsecase.GenAIClient,
 	publisher message.Publisher,
@@ -55,6 +57,7 @@ func NewChatUsecase(
 		chatRepo:             chatRepo,
 		messageRepo:          messageRepo,
 		messageSelectionRepo: messageSelectionRepo,
+		edgeRepo:             edgeRepo,
 		transactionManager:   transactionManager,
 		genaiClient:          genaiClient,
 		publisher:            publisher,
@@ -186,6 +189,30 @@ func (u *chatUsecase) StreamMessage(ctx context.Context, chatUUID string, output
 	if err := u.messageRepo.Create(ctx, assistantMessage); err != nil {
 		slog.ErrorContext(ctx, "アシスタントメッセージの保存に失敗しました", "error", err)
 		return err
+	}
+
+	// Edgeの作成 (一つ前のrole=assistantのメッセージと繋ぐ)
+	// 履歴から最新のassistantメッセージを探す（今保存したメッセージは除く）
+	var previousAssistantMessage *model.Message
+	// allMessagesは時系列順と仮定
+	for i := len(allMessages) - 1; i >= 0; i-- {
+		if allMessages[i].Role == "assistant" {
+			previousAssistantMessage = allMessages[i]
+			break
+		}
+	}
+
+	if previousAssistantMessage != nil {
+		edge := &model.Edge{
+			UUID:              uuid.New().String(),
+			ChatUUID:          chatUUID,
+			SourceMessageUUID: assistantMessage.UUID,
+			TargetMessageUUID: previousAssistantMessage.UUID,
+		}
+		if err := u.edgeRepo.Create(ctx, edge); err != nil {
+			slog.ErrorContext(ctx, "エッジの作成に失敗しました", "error", err)
+			return err
+		}
 	}
 
 	// 6. サマリ生成タスクのPublish
@@ -592,6 +619,18 @@ func (u *chatUsecase) ForkChat(ctx context.Context, params model.ForkChatParams)
 		}
 		if err := u.messageRepo.Create(ctx, message); err != nil {
 			return fmt.Errorf("初期メッセージの作成に失敗: %w", err)
+		}
+
+		// 5-4. Edge作成
+		// 新しいチャットの初期メッセージ(Source) -> Fork元のメッセージ(Target)
+		edge := &model.Edge{
+			UUID:              uuid.New().String(),
+			ChatUUID:          newChatUUID,
+			SourceMessageUUID: message.UUID,
+			TargetMessageUUID: params.TargetMessageUUID,
+		}
+		if err := u.edgeRepo.Create(ctx, edge); err != nil {
+			return fmt.Errorf("エッジの作成に失敗: %w", err)
 		}
 
 		return nil
