@@ -39,8 +39,8 @@ export const GuestSignupForm = () => {
   });
 
   const handleCopyId = () => {
-    if (userData?.id) {
-      navigator.clipboard.writeText(userData.id);
+    if (userData?.uuid) {
+      navigator.clipboard.writeText(userData.uuid);
       toast.success(t("guestSignup.dialog.copySuccess"));
     }
   };
@@ -85,7 +85,7 @@ export const GuestSignupForm = () => {
                   <div className="flex items-center gap-2">
                     <Input
                       readOnly
-                      value={userData.id}
+                      value={userData.uuid}
                       className="font-mono bg-background"
                     />
                     <Button
