@@ -46,6 +46,14 @@ func (m *mockProjectUsecase) GetParentChat(ctx context.Context, projectUUID stri
 	return args.Get(0).(*model.Chat), args.Error(1)
 }
 
+func (m *mockProjectUsecase) GetProjectTree(ctx context.Context, projectUUID string) (*model.ProjectTree, error) {
+	args := m.Called(ctx, projectUUID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.ProjectTree), args.Error(1)
+}
+
 func TestProjectHandler_GetProjects(t *testing.T) {
 	type args struct {
 		userUUID interface{} // コンテキストにセットする値
@@ -311,6 +319,89 @@ func TestProjectHandler_GetParentChat(t *testing.T) {
 
 			h := NewProjectHandler(mockUsecase)
 			err := h.GetParentChat(c)
+
+			if err != nil {
+				// エラーハンドリング
+			}
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Contains(t, rec.Body.String(), tt.wantBodySubstr)
+
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestProjectHandler_GetProjectTree(t *testing.T) {
+	type args struct {
+		projectUUID string
+	}
+	tests := []struct {
+		name           string
+		args           args
+		setupMock      func(m *mockProjectUsecase)
+		wantStatus     int
+		wantBodySubstr string
+	}{
+		{
+			name: "正常系: プロジェクトツリーが取得できること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				tree := &model.ProjectTree{
+					Nodes: []model.ProjectNode{
+						{ID: "node-1"},
+					},
+					Edges: []model.ProjectEdge{
+						{ID: "edge-1"},
+					},
+				}
+				m.On("GetProjectTree", mock.Anything, "project-uuid").Return(tree, nil)
+			},
+			wantStatus:     http.StatusOK,
+			wantBodySubstr: "node-1",
+		},
+		{
+			name: "異常系: project_uuidが空の場合400エラー",
+			args: args{
+				projectUUID: "",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				// 呼び出されない
+			},
+			wantStatus:     http.StatusBadRequest,
+			wantBodySubstr: "project_uuidは必須です",
+		},
+		{
+			name: "異常系: Usecaseでエラーが発生した場合500エラー",
+			args: args{
+				projectUUID: "project-error",
+			},
+			setupMock: func(m *mockProjectUsecase) {
+				m.On("GetProjectTree", mock.Anything, "project-error").Return(nil, errors.New("usecase error"))
+			},
+			wantStatus:     http.StatusInternalServerError,
+			wantBodySubstr: "usecase error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Echoのセットアップ
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/projects/"+tt.args.projectUUID+"/tree", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("project_uuid")
+			c.SetParamValues(tt.args.projectUUID)
+
+			// モックのセットアップ
+			mockUsecase := new(mockProjectUsecase)
+			tt.setupMock(mockUsecase)
+
+			h := NewProjectHandler(mockUsecase)
+			err := h.GetProjectTree(c)
 
 			if err != nil {
 				// エラーハンドリング

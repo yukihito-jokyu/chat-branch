@@ -351,3 +351,97 @@ func TestChatRepository_FindOldestByProjectUUID(t *testing.T) {
 		})
 	}
 }
+
+func TestChatRepository_CountByProjectUUID(t *testing.T) {
+	type args struct {
+		projectUUID string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupData func(db *gorm.DB)
+		want      int64
+		wantErr   bool
+	}{
+		{
+			name: "正常系: プロジェクト内のチャット数が正しくカウントされること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&chatORM{
+					UUID:        "chat-1",
+					ProjectUUID: "project-uuid",
+					Title:       "chat 1",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+				})
+				db.Create(&chatORM{
+					UUID:        "chat-2",
+					ProjectUUID: "project-uuid",
+					Title:       "chat 2",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+				})
+				db.Create(&chatORM{
+					UUID:        "chat-other",
+					ProjectUUID: "other-project",
+					Title:       "other chat",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+				})
+			},
+			want:    2,
+			wantErr: false,
+		},
+		{
+			name: "正常系: チャットが存在しない場合は0が返ること",
+			args: args{
+				projectUUID: "empty-project",
+			},
+			setupData: func(db *gorm.DB) {},
+			want:      0,
+			wantErr:   false,
+		},
+		{
+			name: "異常系: DBエラーが発生した場合エラーになること",
+			args: args{
+				projectUUID: "project-uuid",
+			},
+			setupData: func(db *gorm.DB) {
+				sqlDB, _ := db.DB()
+				sqlDB.Close()
+			},
+			want:    0,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// インメモリDBのセットアップ
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("failed to connect database: %v", err)
+			}
+			// マイグレーション
+			if err := db.AutoMigrate(&chatORM{}); err != nil {
+				t.Fatalf("failed to migrate database: %v", err)
+			}
+
+			// データ投入
+			if tt.setupData != nil {
+				tt.setupData(db)
+			}
+
+			r := NewChatRepository(db)
+			got, err := r.CountByProjectUUID(context.Background(), tt.args.projectUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("chatRepository.CountByProjectUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("chatRepository.CountByProjectUUID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

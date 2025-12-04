@@ -17,6 +17,8 @@ type Message struct {
 	Content           string
 	ContextSummary    *string
 	SourceChatUUID    *string
+	PositionX         float64
+	PositionY         float64
 	Forks             []Fork
 	MergeReports      []*Message
 	CreatedAt         time.Time

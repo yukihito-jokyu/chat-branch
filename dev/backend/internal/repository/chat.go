@@ -58,6 +58,8 @@ func (r *chatRepository) Create(ctx context.Context, chat *model.Chat) error {
 		Title:                chat.Title,
 		Status:               chat.Status,
 		ContextSummary:       contextSummary,
+		PositionX:            chat.PositionX,
+		PositionY:            chat.PositionY,
 		CreatedID:            uuid.New().String(),
 		CreatedAt:            chat.CreatedAt,
 		UpdatedAt:            chat.UpdatedAt,
@@ -89,6 +91,8 @@ func (r *chatRepository) FindByID(ctx context.Context, uuid string) (*model.Chat
 		Title:                orm.Title,
 		Status:               orm.Status,
 		ContextSummary:       contextSummary,
+		PositionX:            orm.PositionX,
+		PositionY:            orm.PositionY,
 		CreatedAt:            orm.CreatedAt,
 		UpdatedAt:            orm.UpdatedAt,
 	}, nil
@@ -124,7 +128,20 @@ func (r *chatRepository) FindOldestByProjectUUID(ctx context.Context, projectUUI
 		Title:                orm.Title,
 		Status:               orm.Status,
 		ContextSummary:       contextSummary,
+		PositionX:            orm.PositionX,
+		PositionY:            orm.PositionY,
 		CreatedAt:            orm.CreatedAt,
 		UpdatedAt:            orm.UpdatedAt,
 	}, nil
+}
+
+// プロジェクト内のチャット数を取得する
+func (r *chatRepository) CountByProjectUUID(ctx context.Context, projectUUID string) (int64, error) {
+	slog.DebugContext(ctx, "プロジェクト内チャット数取得処理を開始", "project_uuid", projectUUID)
+	var count int64
+	db := getDB(ctx, r.db)
+	if err := db.WithContext(ctx).Model(&chatORM{}).Where("project_uuid = ?", projectUUID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }

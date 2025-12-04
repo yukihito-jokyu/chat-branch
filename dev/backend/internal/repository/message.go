@@ -20,6 +20,8 @@ type messageORM struct {
 	ContextSummary       *string   `gorm:"column:context_summary;type:text"`
 	SourceChatUUID       *string   `gorm:"column:source_chat_uuid;size:255"`
 	MessageSelectionUUID *string   `gorm:"column:message_selection_uuid;size:255"`
+	PositionX            float64   `gorm:"column:position_x;default:0"`
+	PositionY            float64   `gorm:"column:position_y;default:0"`
 	CreatedID            string    `gorm:"column:created_id;size:255"`
 	CreatedAt            time.Time `gorm:"column:created_at"`
 	UpdatedAt            time.Time `gorm:"column:updated_at"`
@@ -47,6 +49,9 @@ func (r *messageRepository) Create(ctx context.Context, message *model.Message) 
 		ParentMessageUUID: message.ParentMessageUUID,
 		Role:              message.Role,
 		Content:           message.Content,
+		SourceChatUUID:    message.SourceChatUUID,
+		PositionX:         message.PositionX,
+		PositionY:         message.PositionY,
 		CreatedID:         uuid.New().String(),
 		CreatedAt:         message.CreatedAt,
 	}
@@ -110,6 +115,8 @@ func (r *messageRepository) FindMessagesByChatID(ctx context.Context, chatUUID s
 			Role:              orm.Role,
 			Content:           orm.Content,
 			SourceChatUUID:    orm.SourceChatUUID,
+			PositionX:         orm.PositionX,
+			PositionY:         orm.PositionY,
 			Forks:             forksMap[orm.UUID],
 			CreatedAt:         orm.CreatedAt,
 		})
@@ -151,6 +158,8 @@ func (r *messageRepository) FindLatestMessageWithSummary(ctx context.Context, ch
 		Content:           orm.Content,
 		ContextSummary:    orm.ContextSummary,
 		SourceChatUUID:    orm.SourceChatUUID,
+		PositionX:         orm.PositionX,
+		PositionY:         orm.PositionY,
 		CreatedAt:         orm.CreatedAt,
 	}, nil
 }
@@ -181,6 +190,36 @@ func (r *messageRepository) FindLatestMessageByRole(ctx context.Context, chatUUI
 		Content:           orm.Content,
 		ContextSummary:    orm.ContextSummary,
 		SourceChatUUID:    orm.SourceChatUUID,
+		PositionX:         orm.PositionX,
+		PositionY:         orm.PositionY,
+		CreatedAt:         orm.CreatedAt,
+	}, nil
+}
+
+// 指定されたUUIDのメッセージを取得する
+func (r *messageRepository) FindByID(ctx context.Context, uuid string) (*model.Message, error) {
+	slog.DebugContext(ctx, "メッセージ取得処理を開始", "uuid", uuid)
+	var orm messageORM
+	db := getDB(ctx, r.db)
+
+	err := db.WithContext(ctx).Where("uuid = ?", uuid).First(&orm).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &model.Message{
+		UUID:              orm.UUID,
+		ChatUUID:          orm.ChatUUID,
+		ParentMessageUUID: orm.ParentMessageUUID,
+		Role:              orm.Role,
+		Content:           orm.Content,
+		ContextSummary:    orm.ContextSummary,
+		SourceChatUUID:    orm.SourceChatUUID,
+		PositionX:         orm.PositionX,
+		PositionY:         orm.PositionY,
 		CreatedAt:         orm.CreatedAt,
 	}, nil
 }

@@ -203,7 +203,6 @@ export function MessageItem({ message }: MessageItemProps) {
 
     return result;
   }, [message.content, message.forks]);
-  console.log(message);
 
   return (
     <div

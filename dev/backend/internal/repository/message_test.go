@@ -31,6 +31,8 @@ func TestMessageRepository_Create(t *testing.T) {
 					ChatUUID:  "chat-uuid",
 					Role:      "user",
 					Content:   "hello",
+					PositionX: 100.0,
+					PositionY: 200.0,
 					CreatedAt: time.Now(),
 				},
 			},
@@ -75,6 +77,20 @@ func TestMessageRepository_Create(t *testing.T) {
 			if err := r.Create(context.Background(), tt.args.message); (err != nil) != tt.wantErr {
 				t.Errorf("messageRepository.Create() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
+			// 正常系の場合、保存されたデータを確認する
+			if !tt.wantErr {
+				var saved messageORM
+				if err := db.First(&saved, "uuid = ?", tt.args.message.UUID).Error; err != nil {
+					t.Fatalf("failed to find saved message: %v", err)
+				}
+				if saved.PositionX != tt.args.message.PositionX {
+					t.Errorf("PositionX = %v, want %v", saved.PositionX, tt.args.message.PositionX)
+				}
+				if saved.PositionY != tt.args.message.PositionY {
+					t.Errorf("PositionY = %v, want %v", saved.PositionY, tt.args.message.PositionY)
+				}
+			}
 		})
 	}
 }
@@ -101,6 +117,8 @@ func TestMessageRepository_FindMessagesByChatID(t *testing.T) {
 					ChatUUID:  "chat-uuid",
 					Role:      "user",
 					Content:   "hello",
+					PositionX: 10.0,
+					PositionY: 20.0,
 					CreatedAt: time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
 				})
 				db.Create(&messageORM{
@@ -241,6 +259,14 @@ func TestMessageRepository_FindMessagesByChatID(t *testing.T) {
 			if len(got) > 1 {
 				if got[0].CreatedAt.After(got[1].CreatedAt) {
 					t.Errorf("messageRepository.FindMessagesByChatID() order is wrong")
+				}
+			}
+
+			// PositionX, PositionY の確認
+			if tt.name == "正常系: チャットIDに紐づくメッセージが取得できること" {
+				// msg-1
+				if got[0].PositionX != 10.0 || got[0].PositionY != 20.0 {
+					t.Errorf("msg-1 position mismatch: got (%v, %v), want (10.0, 20.0)", got[0].PositionX, got[0].PositionY)
 				}
 			}
 		})
@@ -561,6 +587,118 @@ func TestMessageRepository_FindLatestMessageByRole(t *testing.T) {
 				} else {
 					if got.UUID != tt.want.UUID {
 						t.Errorf("messageRepository.FindLatestMessageByRole() UUID = %v, want %v", got.UUID, tt.want.UUID)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestMessageRepository_FindByID(t *testing.T) {
+	type args struct {
+		uuid string
+	}
+	tests := []struct {
+		name      string
+		args      args
+		setupData func(db *gorm.DB)
+		want      *model.Message
+		wantErr   bool
+	}{
+		{
+			name: "正常系: 指定されたUUIDのメッセージが取得できること",
+			args: args{
+				uuid: "msg-1",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&messageORM{
+					UUID:      "msg-1",
+					ChatUUID:  "chat-uuid",
+					Role:      "user",
+					Content:   "hello",
+					PositionX: 100.0,
+					PositionY: 200.0,
+					CreatedAt: time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
+				})
+			},
+			want: &model.Message{
+				UUID:      "msg-1",
+				ChatUUID:  "chat-uuid",
+				Role:      "user",
+				Content:   "hello",
+				PositionX: 100.0,
+				PositionY: 200.0,
+				CreatedAt: time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
+			},
+			wantErr: false,
+		},
+		{
+			name: "正常系: メッセージが存在しない場合はnilが返ること",
+			args: args{
+				uuid: "non-existent",
+			},
+			setupData: func(db *gorm.DB) {
+				db.Create(&messageORM{
+					UUID:     "msg-1",
+					ChatUUID: "chat-uuid",
+					Role:     "user",
+					Content:  "hello",
+				})
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "異常系: DBエラーが発生した場合エラーになること",
+			args: args{
+				uuid: "msg-1",
+			},
+			setupData: func(db *gorm.DB) {
+				sqlDB, _ := db.DB()
+				sqlDB.Close()
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// インメモリDBのセットアップ
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("failed to connect database: %v", err)
+			}
+			// マイグレーション
+			if err := db.AutoMigrate(&messageORM{}); err != nil {
+				t.Fatalf("failed to migrate database: %v", err)
+			}
+
+			if tt.setupData != nil {
+				tt.setupData(db)
+			}
+
+			r := NewMessageRepository(db)
+			got, err := r.FindByID(context.Background(), tt.args.uuid)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("messageRepository.FindByID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("messageRepository.FindByID() got = %v, want nil", got)
+				}
+			} else {
+				if got == nil {
+					t.Errorf("messageRepository.FindByID() got nil, want %v", tt.want)
+				} else {
+					if got.UUID != tt.want.UUID {
+						t.Errorf("messageRepository.FindByID() UUID = %v, want %v", got.UUID, tt.want.UUID)
+					}
+					if got.PositionX != tt.want.PositionX {
+						t.Errorf("messageRepository.FindByID() PositionX = %v, want %v", got.PositionX, tt.want.PositionX)
+					}
+					if got.PositionY != tt.want.PositionY {
+						t.Errorf("messageRepository.FindByID() PositionY = %v, want %v", got.PositionY, tt.want.PositionY)
 					}
 				}
 			}

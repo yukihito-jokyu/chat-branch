@@ -59,14 +59,15 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 	projectRepo := repository.NewProjectRepository(db)
 	chatRepo := repository.NewChatRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
+	edgeRepo := repository.NewEdgeRepository(db)
 	txManager := repository.NewTransactionManager(db)
-	projectUsecase := usecase.NewProjectUsecase(projectRepo, chatRepo, messageRepo, txManager)
+	projectUsecase := usecase.NewProjectUsecase(projectRepo, chatRepo, messageRepo, edgeRepo, txManager)
 	projectHandler := handler.NewProjectHandler(projectUsecase)
 
 	// Chat の依存関係注入
 	genaiClientWrapper := usecase.NewGenAIClientWrapper(genaiClient)
 	messageSelectionRepo := repository.NewMessageSelectionRepository(db)
-	chatUsecase := usecase.NewChatUsecase(chatRepo, messageRepo, messageSelectionRepo, txManager, genaiClientWrapper, publisher)
+	chatUsecase := usecase.NewChatUsecase(chatRepo, messageRepo, messageSelectionRepo, edgeRepo, txManager, genaiClientWrapper, publisher)
 	chatHandler := handler.NewChatHandler(chatUsecase)
 
 	// Middleware の初期化
@@ -93,6 +94,8 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 		project_router.POST("", projectHandler.CreateProject)
 		// プロジェクトの親チャットのUUIDを取得する
 		project_router.GET("/:project_uuid", projectHandler.GetParentChat)
+		// プロジェクトのツリー構造を取得する
+		project_router.GET("/:project_uuid/tree", projectHandler.GetProjectTree)
 	}
 
 	// chat関連

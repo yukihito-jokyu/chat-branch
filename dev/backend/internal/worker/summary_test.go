@@ -70,6 +70,14 @@ func (m *MockMessageRepository) FindLatestMessageByRole(ctx context.Context, cha
 	return args.Get(0).(*model.Message), args.Error(1)
 }
 
+func (m *MockMessageRepository) FindByID(ctx context.Context, uuid string) (*model.Message, error) {
+	args := m.Called(ctx, uuid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Message), args.Error(1)
+}
+
 type MockGenAIClient struct {
 	mock.Mock
 }
