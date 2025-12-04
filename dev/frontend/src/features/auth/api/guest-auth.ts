@@ -3,13 +3,13 @@ import { apiClient } from "@/lib/api-client";
 export type SignupResponse = {
   token: string;
   user: {
-    id: string;
+    uuid: string;
     name: string;
   };
 };
 
 export type LoginRequest = {
-  user_id: string;
+  user_uuid: string;
 };
 
 export type LoginResponse = {

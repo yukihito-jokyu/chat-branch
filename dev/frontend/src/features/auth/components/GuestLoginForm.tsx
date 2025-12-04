@@ -38,7 +38,7 @@ export const GuestLoginForm = () => {
       toast.error(t("guestLogin.validation.userIdRequired"));
       return;
     }
-    mutation.mutate({ user_id: userId });
+    mutation.mutate({ user_uuid: userId });
   };
 
   return (
