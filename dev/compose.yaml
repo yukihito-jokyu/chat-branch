@@ -45,6 +45,14 @@ services:
     networks:
       - chat-branch-net
 
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: quick_tunnel
+    restart: unless-stopped
+    networks:
+      - chat-branch-net
+    command: tunnel --url http://react-chat-branch:5173
+
 volumes:
   chat-branch-data:
 

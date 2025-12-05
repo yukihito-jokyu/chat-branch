@@ -6,6 +6,7 @@ import (
 	internalMiddleware "backend/internal/middleware"
 	"backend/internal/repository"
 	"backend/internal/usecase"
+	"strings"
 
 	"log/slog"
 
@@ -22,9 +23,18 @@ func InitRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, genaiClient *gena
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"http://localhost:5173"},
 		AllowCredentials: true,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+		AllowOriginFunc: func(origin string) (bool, error) {
+			if origin == "http://localhost:5173" {
+				return true, nil
+			}
+			if strings.HasSuffix(origin, ".trycloudflare.com") {
+				return true, nil
+			}
+
+			return false, nil
+		},
 	}))
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:   true,
