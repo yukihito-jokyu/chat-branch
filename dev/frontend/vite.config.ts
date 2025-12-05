@@ -21,5 +21,12 @@ export default defineConfig({
   },
   server: {
     host: true,
+    allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: "http://golang-chat-branch:1323",
+        changeOrigin: true,
+      },
+    },
   },
 });
