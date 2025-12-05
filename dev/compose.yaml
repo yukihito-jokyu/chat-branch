@@ -1,0 +1,53 @@
+services:
+  golang-chat-branch:
+    build: ./backend
+    ports:
+      - "1323:1323"
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    networks:
+      - chat-branch-net
+    depends_on:
+      db-chat-branch:
+        condition: service_healthy
+
+  db-chat-branch:
+    container_name: db-chat-branch
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: chat_branch
+    volumes:
+      - chat-branch-data:/var/lib/mysql
+      - ../db/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      - "3306:3306"
+    networks:
+      - chat-branch-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  react-chat-branch:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    working_dir: /app
+    networks:
+      - chat-branch-net
+
+volumes:
+  chat-branch-data:
+
+networks:
+  chat-branch-net:
+    driver: bridge

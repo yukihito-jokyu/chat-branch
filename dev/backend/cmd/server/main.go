@@ -15,6 +15,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/labstack/echo/v4"
+	"github.com/pressly/goose/v3"
 	"google.golang.org/genai"
 	"gorm.io/gorm"
 )
@@ -42,6 +43,46 @@ func main() {
 		log.Fatalf("データベース接続に失敗: %v", err)
 	}
 
+	// マイグレーションの実行
+	sqlDB, err := db.DB()
+	if err != nil {
+		slog.Error("DB接続の取得に失敗", "error", err)
+		os.Exit(1)
+	}
+
+	if err := goose.SetDialect("mysql"); err != nil {
+		slog.Error("goose dialectの設定に失敗", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("Starting database migration...")
+
+	// デバッグログ: カレントディレクトリとマイグレーションディレクトリの確認
+	cwd, _ := os.Getwd()
+	slog.Info("Current working directory", "cwd", cwd)
+
+	if _, err := os.Stat("db/migrations"); os.IsNotExist(err) {
+		slog.Error("CRITICAL: db/migrations directory does not exist", "path", cwd+"/db/migrations")
+		os.Exit(1)
+	} else {
+		slog.Info("SUCCESS: db/migrations directory found")
+
+		// ファイル一覧を表示
+		files, _ := os.ReadDir("db/migrations")
+		for _, f := range files {
+			slog.Debug("マイグレーションファイルが見つかりませんでした", "file", f.Name())
+		}
+	}
+
+	// gooseのロガーを標準出力に向ける
+	goose.SetLogger(log.New(os.Stdout, "goose: ", log.LstdFlags))
+
+	if err := goose.Up(sqlDB, "db/migrations"); err != nil {
+		slog.Error("マイグレーションの実行に失敗", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Database migration completed successfully")
+
 	// GenAI クライアントの初期化
 	genaiClient, err := genai.NewClient(context.Background(), &genai.ClientConfig{
 		APIKey: cfg.Gemini.APIKey,
@@ -52,10 +93,6 @@ func main() {
 	// defer genaiClient.Close() // main関数終了時に閉じる必要はないが、明示的に書くならここ
 
 	// Watermill Publisher の初期化
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Fatalf("DB接続の取得に失敗: %v", err)
-	}
 	publisher, err := queue.NewPublisher(sqlDB, slog.Default())
 	if err != nil {
 		log.Fatalf("Publisherの作成に失敗: %v", err)
